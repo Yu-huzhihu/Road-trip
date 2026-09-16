@@ -1,0 +1,2091 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>顺路旅行路线规划器 · 精确到小区</title>
+<!-- 腾讯地图 GL JS 代理模式:前端不携带任何密钥 -->
+<script type="text/javascript">
+  window._TMapSecurityConfig = {
+    serviceHost: 'http://127.0.0.1:__WB_HTTP_PORT__/_TMapService/_wbt/__WB_TMAP_SECRET__',
+  };
+  window.__tmapFailed = false;
+</script>
+<script src="https://map.qq.com/api/gljs?v=1.exp" onerror="window.__tmapFailed = true"></script>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --ink: #16202e; --ink-2: #47566b; --ink-3: #8593a8;
+    --line: #e3e8f0; --bg: #f4f6fb; --card: #ffffff;
+    --brand: #2f6fed; --brand-soft: #eaf1ff;
+    --gold: #b45309; --gold-2: #ffefc9; --gold-line: #e6a93b;
+    --teal: #0e8f8d; --bus: #0f7b6c;
+  }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; line-height: 1.6; }
+  .app { display: flex; align-items: flex-start; gap: 18px; max-width: 1560px; margin: 0 auto; padding: 16px; }
+
+  /* ============ 左栏 ============ */
+  .panel { width: 348px; flex: 0 0 348px; position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto;
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; box-shadow: 0 8px 28px rgba(23,39,68,.06); }
+  .panel::-webkit-scrollbar { width: 8px; }
+  .panel::-webkit-scrollbar-thumb { background: #dbe2ee; border-radius: 8px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 2px; }
+  .brand .logo { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, #2f6fed, #0ea5a4); color: #fff; font-size: 18px; }
+  .brand h1 { font-size: 16.5px; margin: 0; }
+  .brand p { margin: 0; font-size: 11.5px; color: var(--ink-3); }
+  .field { margin-top: 13px; }
+  .field > label { display: block; font-size: 12px; color: var(--ink-2); margin-bottom: 6px; font-weight: 600; }
+  .field > label em { font-style: normal; font-weight: 400; color: var(--ink-3); }
+  input[type=text], select {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; font-size: 13.5px;
+    background: #fbfcfe; color: var(--ink); outline: none; font-family: inherit;
+  }
+  input[type=text]:focus, select:focus { border-color: var(--brand); background: #fff; box-shadow: 0 0 0 3px var(--brand-soft); }
+  .loc-card { margin-top: 7px; font-size: 11.5px; color: var(--ink-2); background: #f7f9fd; border: 1px solid var(--line); border-radius: 10px; padding: 7px 9px; }
+  .loc-card b { color: var(--ink); }
+  .loc-card .warn { color: #b45309; }
+  .loc-card .area-btns { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 6px; }
+  .loc-card .area-btns button { font-size: 11px; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 2px 8px; cursor: pointer; font-family: inherit; color: var(--ink-2); }
+  .loc-card .area-btns button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .swap { border: 1px solid var(--line); background: #fff; border-radius: 10px; width: 36px; height: 36px; cursor: pointer; font-size: 15px; color: var(--ink-2); flex: 0 0 36px; }
+  .swap:hover { border-color: var(--brand); color: var(--brand); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { border: 1px solid var(--line); background: #fff; color: var(--ink-2); border-radius: 999px; padding: 5px 10px; font-size: 12px; cursor: pointer; transition: .15s; font-family: inherit; }
+  .chip:hover { border-color: #b9cdf7; color: var(--brand); }
+  .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .cta { width: 100%; margin-top: 14px; padding: 12px; border: 0; border-radius: 12px; cursor: pointer; background: linear-gradient(135deg, #2f6fed, #1d4ed8); color: #fff; font-size: 15px; font-weight: 600; box-shadow: 0 8px 18px rgba(47,111,237,.25); font-family: inherit; }
+  .cta:hover { filter: brightness(1.06); }
+  details.model, details.spots { margin-top: 12px; font-size: 12px; color: var(--ink-2); }
+  details.model summary, details.spots summary { cursor: pointer; color: var(--brand); font-weight: 600; }
+  details.spots .picked { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0 0; }
+  details.spots .picked .pk { background: var(--gold-2); color: var(--gold); border: 1px solid var(--gold-line); border-radius: 999px; padding: 3px 8px; font-size: 11.5px; cursor: pointer; }
+  .spot-search { margin-top: 8px; }
+  .spot-list { max-height: 232px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 6px; }
+  .spot-group { font-size: 11px; color: var(--ink-3); margin: 6px 4px 3px; }
+  .spot-item { display: inline-block; font-size: 11.5px; border: 1px solid var(--line); border-radius: 999px; padding: 3px 8px; margin: 2px; cursor: pointer; background: #fff; color: var(--ink-2); font-family: inherit; }
+  .spot-item:hover { border-color: var(--gold-line); }
+  .spot-item.on { background: var(--gold); border-color: var(--gold); color: #fff; }
+  details.model table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11.5px; }
+  details.model td { padding: 3px 0; border-bottom: 1px dashed var(--line); color: var(--ink-2); }
+  details.model td:last-child { text-align: right; color: var(--ink); white-space: nowrap; }
+
+  /* ============ 右栏 ============ */
+  .main { flex: 1 1 auto; min-width: 0; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 13px 18px; box-shadow: 0 8px 28px rgba(23,39,68,.05); }
+  .route-title { display: flex; align-items: center; gap: 9px; font-size: 17px; font-weight: 700; flex-wrap: wrap; }
+  .route-title .arrow { color: var(--ink-3); }
+  .topbar .note { font-size: 11.5px; color: var(--ink-3); margin-top: 3px; max-width: 900px; }
+  .ghost { border: 1px solid var(--line); background: #fff; color: var(--ink-2); border-radius: 10px; padding: 8px 13px; font-size: 12.5px; cursor: pointer; font-family: inherit; white-space: nowrap; }
+  .ghost:hover { border-color: var(--brand); color: var(--brand); }
+
+  .mapwrap { position: relative; margin-top: 14px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #eef2f8; }
+  #map { width: 100%; height: 360px; }
+  .map-legend { position: absolute; left: 12px; bottom: 12px; background: rgba(255,255,255,.94); border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; font-size: 11px; color: var(--ink-2); display: flex; gap: 10px; flex-wrap: wrap; max-width: calc(100% - 24px); }
+  .map-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+  .axis-fallback { display: none; padding: 14px; }
+  .axis-fallback.on { display: block; }
+  .axis-fallback h4 { margin: 0 0 2px; font-size: 13px; }
+  .axis-fallback p { margin: 0 0 8px; font-size: 11.5px; color: var(--ink-3); }
+
+  .section-title { display: flex; align-items: center; gap: 10px; margin: 20px 2px 10px; }
+  .section-title h2 { font-size: 15px; margin: 0; }
+  .section-title .hint { font-size: 11.5px; color: var(--ink-3); }
+
+  /* ---- 路线卡 ---- */
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; margin-bottom: 14px; box-shadow: 0 6px 20px rgba(23,39,68,.05); overflow: hidden; position: relative; }
+  .card.sel { border-color: #7fa8f5; box-shadow: 0 10px 30px rgba(47,111,237,.13); }
+  .card.champ { border: 2px solid var(--gold-line); background: linear-gradient(180deg, #fffdf6 0%, #ffffff 40%); box-shadow: 0 14px 34px rgba(180,83,9,.16); }
+  .card.champ::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(100deg, transparent 40%, rgba(255,214,132,.32) 50%, transparent 60%); transform: translateX(-100%); animation: shine 5s ease-in-out infinite; }
+  @keyframes shine { 0%,58% { transform: translateX(-100%); } 88%,100% { transform: translateX(100%); } }
+  .ribbon { position: absolute; right: -46px; top: 18px; width: 168px; text-align: center; transform: rotate(38deg); background: linear-gradient(135deg, #f59e0b, #b45309); color: #fff; font-size: 11.5px; font-weight: 700; letter-spacing: 1px; padding: 4px 0; box-shadow: 0 2px 8px rgba(180,83,9,.35); z-index: 2; }
+  .card-head { padding: 15px 18px 11px; cursor: pointer; position: relative; z-index: 1; }
+  .card-head .row1 { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 10px; }
+  .card-head h3 { margin: 0; font-size: 15.5px; }
+  .badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--brand-soft); color: var(--brand); border: 1px solid #cfe0ff; font-weight: 600; }
+  .badge.gold { background: var(--gold-2); color: var(--gold); border-color: var(--gold-line); }
+  .badge.green { background: #e6f5f2; color: var(--bus); border-color: #b7e0d9; }
+  .badge.gray { background: #f1f4f9; color: var(--ink-2); border-color: var(--line); font-weight: 500; }
+  .card-head .desc { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-2); }
+  .metrics { display: flex; gap: 20px; margin-top: 11px; flex-wrap: wrap; }
+  .metrics .m { display: flex; flex-direction: column; }
+  .metrics .m b { font-size: 18px; line-height: 1.25; font-variant-numeric: tabular-nums; }
+  .metrics .m span { font-size: 10.5px; color: var(--ink-3); }
+  .card.champ .metrics .m:first-child b { color: var(--gold); }
+  .saving { margin-top: 9px; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; background: var(--gold-2); color: var(--gold); border: 1px solid var(--gold-line); border-radius: 10px; padding: 5px 10px; font-weight: 600; }
+
+  /* ---- 时间轴与分段 ---- */
+  .timeline { padding: 2px 18px 14px; position: relative; z-index: 1; }
+  .node { display: flex; gap: 12px; align-items: flex-start; }
+  .pin { flex: 0 0 26px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 700; color: #fff; background: var(--brand); margin-top: 2px; }
+  .pin.end { background: #dc2626; }
+  .pin.stop { background: #f59e0b; }
+  .node .info { flex: 1 1 auto; min-width: 0; }
+  .node .info .name { font-weight: 600; font-size: 14.5px; }
+  .node .info .name em { font-style: normal; font-size: 11.5px; color: var(--ink-3); font-weight: 400; margin-left: 6px; }
+  .node .info .spots { font-size: 12.5px; color: var(--ink-2); margin-top: 2px; }
+  .node .sc { flex: 0 0 auto; font-size: 11px; color: var(--ink-2); background: #f1f4f9; border: 1px solid var(--line); border-radius: 8px; padding: 2px 7px; white-space: nowrap; }
+
+  .seg { margin: 8px 0 8px 12px; padding-left: 20px; border-left: 2px dashed #d7deea; }
+  .seg-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-2); }
+  .seg-head .name { font-weight: 600; color: var(--ink); }
+  .seg-head .km { color: var(--ink-3); }
+  .rules { display: flex; gap: 5px; flex-wrap: wrap; margin: 6px 0 0; }
+  .rule-tag { font-size: 10.5px; background: #f3f6fc; border: 1px dashed #c9d6ea; color: #52627a; border-radius: 6px; padding: 1px 6px; }
+  .pick { margin-top: 7px; border: 1px solid #e6ecf6; border-radius: 12px; padding: 10px 11px; background: linear-gradient(180deg, #fbfdff, #ffffff); }
+  .pick-main { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .pick-main .tag { font-size: 10.5px; background: var(--teal); color: #fff; border-radius: 6px; padding: 1px 6px; font-weight: 700; }
+  .pick-main .mode-name { font-weight: 700; font-size: 14px; }
+  .pick-main .price { font-size: 16px; font-weight: 700; color: var(--bus); font-variant-numeric: tabular-nums; }
+  .pick-main .time { font-size: 12.5px; color: var(--ink-2); }
+  .reason { margin-top: 5px; font-size: 12.5px; color: #2c3a4e; background: #f3f8f7; border-left: 3px solid var(--teal); border-radius: 0 8px 8px 0; padding: 6px 9px; }
+  .d2d { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-top: 7px; }
+  .d2d .piece { font-size: 11px; background: #f6f8fc; border: 1px solid var(--line); border-radius: 7px; padding: 2px 7px; color: var(--ink-2); }
+  .d2d .piece i { font-style: normal; color: var(--ink-3); margin-right: 3px; }
+  .d2d .piece.sum { background: #eef4ff; border-color: #cddffd; color: var(--brand); font-weight: 600; }
+  .d2d .arrow { color: #c2ccdb; font-size: 11px; }
+  .tickets { margin-top: 6px; font-size: 11.5px; color: var(--ink-3); }
+  .alts { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .mode { font-family: inherit; font-size: 11.5px; cursor: pointer; background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 5px 9px; color: var(--ink-2); display: inline-flex; align-items: center; gap: 5px; }
+  .mode:hover { border-color: #b9cdf7; }
+  .mode b { font-variant-numeric: tabular-nums; color: var(--ink); }
+  .mode i { font-style: normal; color: var(--ink-3); font-size: 10.5px; }
+  .mode.sel { background: #10192a; border-color: #10192a; color: #e6edf7; }
+  .mode.sel b, .mode.sel i { color: #fff; }
+  .mode.cheap { border-color: #f0c986; background: #fffbf3; }
+  .mode.sel.cheap { background: var(--gold); border-color: var(--gold); }
+
+  .card-foot { border-top: 1px dashed var(--line); padding: 9px 18px 13px; font-size: 12.5px; color: var(--ink-2); display: flex; gap: 18px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .card-foot b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---- 对比图 ---- */
+  .chart { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 15px 18px; box-shadow: 0 6px 20px rgba(23,39,68,.05); }
+  .chart-row { display: grid; grid-template-columns: 200px 1fr 80px 70px 72px; gap: 10px; align-items: center; padding: 6px 0; }
+  .chart .head { display: grid; grid-template-columns: 200px 1fr 80px 70px 72px; gap: 10px; font-size: 11px; color: var(--ink-3); border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .chart .head div:nth-child(n+3) { text-align: right; }
+  .chart-row .lbl { font-size: 12.5px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chart-row .lbl.is-champ { color: var(--gold); font-weight: 700; }
+  .track { background: #f1f4f9; border-radius: 8px; height: 20px; overflow: hidden; }
+  .bar { height: 100%; border-radius: 8px; background: linear-gradient(90deg, #7ea7f7, #2f6fed); transition: width .5s ease; }
+  .bar.gold { background: linear-gradient(90deg, #fbbf24, #b45309); }
+  .chart-row .val { text-align: right; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .chart-row .val.gold { color: var(--gold); }
+  .chart-row .tm, .chart-row .tf { text-align: right; font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+  .chart-foot { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--ink-2); }
+  .empty { padding: 40px; text-align: center; color: var(--ink-3); }
+  .toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%) translateY(20px); background: #10192a; color: #fff; padding: 10px 16px; border-radius: 10px; font-size: 13px; opacity: 0; pointer-events: none; transition: .25s; z-index: 99; }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (max-width: 1120px) { .app { flex-direction: column; } .panel { position: static; width: 100%; flex: 1 1 auto; max-height: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="panel">
+    <div class="brand">
+      <div class="logo">🧭</div>
+      <div>
+        <h1>顺路旅行路线规划</h1>
+        <p>出发地可以填到小区,还能勾必去景点</p>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>出发地 <em>小区 / 商圈 / 景区都可以</em></label>
+      <input type="text" id="from" list="placeList" value="北京·天通苑">
+      <div class="loc-card" id="fromInfo"></div>
+    </div>
+
+    <div class="field">
+      <label>目的地 <em>同上</em></label>
+      <input type="text" id="to" list="placeList" value="上海·张江">
+      <div class="loc-card" id="toInfo"></div>
+    </div>
+
+    <div class="field">
+      <div style="display:flex;gap:8px">
+        <button class="swap" id="swapBtn" title="交换出发地与目的地">⇅</button>
+        <button class="cta" id="goBtn" style="margin-top:0">生成顺路路线</button>
+      </div>
+      <datalist id="placeList"></datalist>
+    </div>
+
+    <details class="spots" id="spotsBox">
+      <summary>① 要途经的景点(可不选)</summary>
+      <div class="picked" id="pickedSpots"></div>
+      <div class="spot-search"><input type="text" id="spotSearch" placeholder="搜景点,比如 兵马俑 / 长城 / 洱海"></div>
+      <div class="spot-list" id="spotList"></div>
+    </details>
+
+    <div class="field">
+      <label>② 这段路你更在意什么</label>
+      <div class="chips" id="prefChips">
+        <button class="chip on" data-pref="balanced">综合推荐</button>
+        <button class="chip" data-pref="speed">时间最短</button>
+        <button class="chip" data-pref="direct">直达不换乘</button>
+        <button class="chip" data-pref="cheap">最省钱</button>
+        <button class="chip" data-pref="comfort">舒适省心</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>③ 大概什么时候出发</label>
+      <select id="departHour">
+        <option value="">不确定</option>
+        <option value="6">早上 6 点</option>
+        <option value="8">早上 8 点</option>
+        <option value="10">上午 10 点</option>
+        <option value="13">下午 1 点</option>
+        <option value="16">下午 4 点</option>
+        <option value="19">晚上 7 点</option>
+        <option value="22">晚上 10 点</option>
+        <option value="1">凌晨(0-5 点)</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>④ 特殊情况(会改变推荐)</label>
+      <div class="chips" id="tagChips">
+        <button class="chip" data-tag="节假日">节假日出行</button>
+        <button class="chip" data-tag="春运">春运</button>
+        <button class="chip" data-tag="带小孩">带小孩</button>
+        <button class="chip" data-tag="行李多">行李多</button>
+        <button class="chip" data-tag="老年人">有老人</button>
+        <button class="chip" data-tag="价格敏感">价格敏感</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>⑤ 旅行主题偏好(可多选)</label>
+      <div class="chips" id="interestChips"></div>
+    </div>
+
+    <div class="field">
+      <label>⑥ 顺路程度</label>
+      <div class="chips" id="ratioChips">
+        <button class="chip" data-ratio="1.22">严格顺路</button>
+        <button class="chip on" data-ratio="1.40">常规推荐</button>
+        <button class="chip" data-ratio="1.70">愿意绕一点</button>
+      </div>
+    </div>
+
+    <details class="model">
+      <summary>计价与决策规则说明</summary>
+      <table>
+        <tr><td>🚄 高铁 G 二等座</td><td>≈ 0.44 元/km</td></tr>
+        <tr><td>🚈 动车 D 二等座</td><td>≈ 0.31 元/km</td></tr>
+        <tr><td>🚂 普速 硬座</td><td>≈ 0.12 元/km</td></tr>
+        <tr><td>🛏️ 普速 硬卧</td><td>≈ 0.22 元/km</td></tr>
+        <tr><td>🚌 城际大巴</td><td>≈ 0.42 元/km</td></tr>
+        <tr><td>🚐 定制客运/拼车</td><td>≈ 0.75 元/km</td></tr>
+        <tr><td>🚇 城际公交/市内地铁</td><td>≈ 0.20-0.25 元/km</td></tr>
+        <tr><td>🚕 打车/网约车</td><td>起步 4 元 + 2.6 元/km</td></tr>
+        <tr><td>✈️ 经济舱</td><td>≈ 0.62 元/km + 90 元</td></tr>
+      </table>
+      <p style="color:var(--ink-3);margin:8px 0 0">
+        每段按这个顺序判断:<b>①</b> 距离 &lt; 300km 优先城际大巴/定制客运;<b>②</b> 端点在县城/乡镇/景区,或火车站离市区超过 10km,
+        优先大巴+专线;<b>③</b> 深夜没有火车班次时用夜班大巴/定制客运;<b>④</b> 带小孩、行李多、有老人、价格敏感优先大巴;
+        <b>⑤</b> 节假日春运把大巴作为兜底;<b>⑥</b> 距离 &gt; 400km 且两端都有高铁站,才推荐火车/高铁。
+        如果大巴门到门时间明显超过高铁,会自动降权,不会硬推。
+      </p>
+      <p style="color:var(--ink-3);margin:6px 0 0">所有耗时与费用均为门到门估算(含接驳、候车、换乘);山区、高原线路实际更久,请以现场班次为准。</p>
+    </details>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <div>
+        <div class="route-title" id="routeTitle">—</div>
+        <div class="note" id="routeNote">点击「生成顺路路线」开始规划</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="ghost" id="copyBtn">复制行程</button>
+      </div>
+    </div>
+
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="map-legend" id="mapLegend"></div>
+      <div class="axis-fallback" id="axisFallback">
+        <h4>路线里程示意图</h4>
+        <p>当前环境未加载在线底图,以下为按里程比例绘制的示意图(非地理位置图)。</p>
+        <svg id="axisSvg" viewBox="0 0 660 240" width="100%"></svg>
+      </div>
+    </div>
+
+    <div class="section-title">
+      <h2>推荐方案</h2>
+      <span class="hint" id="listHint"></span>
+    </div>
+    <div id="cards"></div>
+
+    <div class="section-title">
+      <h2>方案对比</h2>
+      <span class="hint">金色为最经济方案;换乘列是中途需要换车的次数</span>
+    </div>
+    <div class="chart" id="chart"></div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+
+/* ================= 数据层 data.js ================= */
+/* ============================================================
+ * data.js —— 城市 / 车站 / 铁路走廊 / 精确地点(小区·景点) 数据层
+ * 港、澳、台均为中国的一部分,统一标注为「中国香港 / 中国澳门 / 中国台北」
+ * ============================================================ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) { module.exports = factory(); }
+  else { root.TRP_DATA = factory(); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  'use strict';
+
+  /* [名称, 省/地区, 纬度, 经度, 推荐度, 标签, 代表景点, 铁路, 高铁, 机场, 推荐语] */
+  const CORE = [
+    ['北京', '北京', 39.90, 116.41, 96, '古都,历史,都市', '故宫·八达岭长城·天坛·颐和园', 1, 1, 1, '千年古都,中轴线与长城是不可替代的旅行坐标'],
+    ['天津', '天津', 39.13, 117.20, 82, '都市,美食,历史', '五大道·意式风情区·天津之眼·古文化街', 1, 1, 1, '中西合璧的百年商埠,相声与煎饼果子同样地道'],
+    ['承德', '河北', 40.95, 117.94, 79, '历史,园林', '避暑山庄·外八庙·普宁寺', 1, 1, 1, '皇家避暑胜地,园林与寺庙群一城双璧'],
+    ['秦皇岛', '河北', 39.94, 119.60, 78, '海滨,历史', '山海关·北戴河·老龙头', 1, 1, 1, '"天下第一关"与渤海沙滩,北京人最爱的海边'],
+    ['大同', '山西', 40.09, 113.30, 85, '古都,历史,山水', '云冈石窟·悬空寺·北岳恒山', 1, 1, 1, '北魏石窟与悬空寺,北方石刻艺术之巅'],
+    ['太原', '山西', 37.87, 112.55, 74, '历史,美食', '晋祠·山西博物院·食品街', 1, 1, 1, '晋商文化的中心,面食王国'],
+    ['平遥', '山西', 37.20, 112.18, 86, '古都,历史', '平遥古城·双林寺·王家大院', 1, 1, 0, '中国保存最完整的明清县城,城墙内即是博物馆'],
+    ['呼和浩特', '内蒙古', 40.84, 111.75, 72, '民族,历史', '大召寺·塞上老街·昭君墓', 1, 1, 1, '草原门户,藏传佛教与草原风情的交汇'],
+    ['沈阳', '辽宁', 41.80, 123.43, 76, '历史,美食', '沈阳故宫·张氏帅府·中街', 1, 1, 1, '盛京故宫与民国风云,东北美食起点'],
+    ['大连', '辽宁', 38.91, 121.61, 84, '海滨,都市', '星海广场·老虎滩·金石滩', 1, 1, 1, '北方浪漫海滨城,广场与海岸线都很出片'],
+    ['长春', '吉林', 43.82, 125.32, 68, '历史,冰雪', '净月潭·伪满皇宫·长影旧址', 1, 1, 1, '电影城与近代史遗迹,冬季有雪上乐趣'],
+    ['哈尔滨', '黑龙江', 45.80, 126.53, 90, '冰雪,都市,美食', '中央大街·圣索菲亚教堂·冰雪大世界', 1, 1, 1, '东方莫斯科,冬季冰雪王国与俄式建筑'],
+    ['济南', '山东', 36.65, 117.12, 80, '山水,历史', '趵突泉·大明湖·千佛山', 1, 1, 1, '泉城名不虚传,趵突泉与老城区可一日漫游'],
+    ['青岛', '山东', 36.07, 120.38, 91, '海滨,美食,都市', '栈桥·八大关·崂山·啤酒博物馆', 1, 1, 1, '红瓦绿树碧海蓝天,海鲜与啤酒的双重快乐'],
+    ['烟台', '山东', 37.46, 121.45, 79, '海滨,美食', '蓬莱阁·长岛·烟台山', 1, 1, 1, '仙境海岸与海市蜃楼传说,葡萄酒之乡'],
+    ['威海', '山东', 37.51, 122.12, 78, '海滨', '刘公岛·成山头·那香海', 1, 1, 1, '中国最干净的海岸之一,人少景美'],
+    ['郑州', '河南', 34.75, 113.63, 70, '历史,都市', '少林寺·河南博物院·只有河南戏剧幻城', 1, 1, 1, '中原枢纽,少林与华夏文明的中转站'],
+    ['洛阳', '河南', 34.62, 112.45, 88, '古都,历史', '龙门石窟·白马寺·洛邑古城', 1, 1, 1, '十三朝古都,四月牡丹与龙门石刻'],
+    ['开封', '河南', 34.80, 114.31, 77, '古都,美食', '清明上河园·包公祠·鼓楼夜市', 1, 1, 0, '北宋汴京,夜市与宋韵体验地'],
+    ['西安', '陕西', 34.34, 108.94, 95, '古都,历史,美食', '兵马俑·大雁塔·明城墙·回民街', 1, 1, 1, '一朝入长安,兵马俑与城墙旁的碳水之城'],
+    ['兰州', '甘肃', 36.06, 103.83, 76, '美食,民族', '黄河铁桥·白塔山·正宁路夜市', 1, 1, 1, '黄河穿城而过,一碗牛肉面开启西北'],
+    ['敦煌', '甘肃', 40.14, 94.66, 92, '沙漠,历史', '莫高窟·鸣沙山月牙泉·玉门关', 1, 1, 1, '丝路明珠,壁画与沙漠同框的极致体验'],
+    ['西宁', '青海', 36.62, 101.78, 78, '高原,民族', '塔尔寺·青海湖·东关清真大寺', 1, 1, 1, '青藏门户,夏天去青海湖最好的落脚点'],
+    ['银川', '宁夏', 38.49, 106.23, 74, '沙漠,历史', '西夏王陵·镇北堡西部影城·沙湖', 1, 1, 1, '塞上江南,西夏王陵与大漠湖泊并存'],
+    ['乌鲁木齐', '新疆', 43.83, 87.62, 80, '民族,美食', '国际大巴扎·天山天池·红山公园', 1, 1, 1, '西域门户,瓜果与歌舞的集散地'],
+    ['喀什', '新疆', 39.47, 75.99, 85, '民族,历史', '喀什古城·艾提尕尔清真寺·香妃园', 1, 1, 1, '不到喀什不算到新疆,老城生活气息浓烈'],
+    ['拉萨', '西藏', 29.65, 91.14, 95, '高原,民族,历史', '布达拉宫·大昭寺·八廓街', 1, 1, 1, '日光之城,布达拉宫是此生必去的一站'],
+    ['成都', '四川', 30.57, 104.07, 94, '美食,都市,亲子', '大熊猫基地·宽窄巷子·都江堰', 1, 1, 1, '来了就不想走,火锅与熊猫的松弛之城'],
+    ['九寨沟', '四川', 33.26, 103.92, 90, '山水,高原', '九寨沟·黄龙风景区', 0, 0, 1, '童话世界,水色之美的天花板(需换乘汽车)'],
+    ['峨眉山', '四川', 29.60, 103.48, 87, '山水,历史', '金顶·乐山大佛·清音阁', 1, 1, 1, '峨眉金顶云海与乐山大佛一线连游'],
+    ['重庆', '重庆', 29.56, 106.55, 92, '都市,美食,网红', '洪崖洞·磁器口·长江索道', 1, 1, 1, '8D 魔幻山城,夜景与火锅都是一流'],
+    ['昆明', '云南', 24.88, 102.83, 84, '山水,民族', '滇池·石林·翠湖', 1, 1, 1, '春城昆明,四季如春的去云南第一站'],
+    ['大理', '云南', 25.61, 100.27, 90, '山水,民族', '洱海·大理古城·崇圣寺三塔', 1, 1, 1, '苍山洱海,骑行环海西路是最治愈的旅行'],
+    ['丽江', '云南', 26.86, 100.23, 89, '民族,山水', '丽江古城·玉龙雪山·束河古镇', 1, 1, 1, '古城与雪山同框,纳西文化活化石'],
+    ['西双版纳', '云南', 21.99, 100.80, 83, '民族,山水', '中科院热带植物园·星光夜市', 1, 1, 1, '中国唯一热带雨林,夜市与傣味都值得停留'],
+    ['贵阳', '贵州', 26.65, 106.63, 75, '山水,美食', '甲秀楼·青岩古镇·黔灵山', 1, 1, 1, '爽爽的贵阳,酸汤鱼与喀斯特的中转站'],
+    ['桂林', '广西', 25.27, 110.29, 92, '山水', '漓江·象鼻山·阳朔西街', 1, 1, 1, '桂林山水甲天下,漓江竹筏是重头戏'],
+    ['南宁', '广西', 22.82, 108.32, 70, '美食,民族', '青秀山·三街两巷', 1, 1, 1, '绿城南宁,去往东南亚与北部湾的门户'],
+    ['北海', '广西', 21.48, 109.12, 80, '海滨', '北海银滩·涠洲岛·北海老街', 1, 1, 1, '银滩细沙与涠洲岛火山海岸,性价比很高'],
+    ['海口', '海南', 20.04, 110.32, 76, '海滨', '骑楼老街·假日海滩·火山口公园', 1, 1, 1, '椰城海口,环岛高铁的北端起点'],
+    ['三亚', '海南', 18.25, 109.51, 90, '海滨,亲子', '亚龙湾·蜈支洲岛·天涯海角', 1, 1, 1, '中国最南的度假海湾,冬天最舒服的选择'],
+    ['广州', '广东', 23.13, 113.26, 86, '美食,都市', '广州塔·沙面·陈家祠·早茶', 1, 1, 1, '食在广州,早茶与骑楼里的市井烟火'],
+    ['深圳', '广东', 22.54, 114.06, 78, '都市,网红', '世界之窗·深圳湾公园·大鹏所城', 1, 1, 1, '创新之城,海岸线与大鹏古城反差感强'],
+    ['珠海', '广东', 22.27, 113.58, 77, '海滨,都市', '情侣路·长隆海洋王国·外伶仃岛', 1, 1, 1, '浪漫之城,情侣路与海岛花园'],
+    ['武汉', '湖北', 30.59, 114.31, 85, '历史,都市,美食', '黄鹤楼·东湖·户部巷·湖北省博物馆', 1, 1, 1, '江城武汉,黄鹤楼与过早文化的双重诱惑'],
+    ['长沙', '湖南', 28.23, 112.94, 87, '美食,网红', '橘子洲·岳麓山·文和友·坡子街', 1, 1, 1, '不夜城长沙,夜宵与湘江夜景标配'],
+    ['张家界', '湖南', 29.13, 110.48, 93, '山水', '武陵源·天门山·玻璃桥', 1, 1, 1, '阿凡达取景地,石英砂岩峰林震撼'],
+    ['南昌', '江西', 28.68, 115.86, 72, '历史,红色', '滕王阁·八一起义纪念馆·万寿宫', 1, 1, 1, '英雄城,滕王阁与赣江夜景'],
+    ['景德镇', '江西', 29.27, 117.18, 80, '历史,网红', '陶溪川·古窑民俗博览区·御窑博物馆', 1, 1, 1, '千年瓷都,年轻人最爱的陶瓷手作之城'],
+    ['武夷山', '福建', 27.75, 118.03, 82, '山水', '九曲溪·天游峰·大红袍景区', 1, 1, 1, '丹霞碧水与岩茶,竹筏漂流一绝'],
+    ['福州', '福建', 26.07, 119.30, 76, '历史,美食', '三坊七巷·鼓山·上下杭', 1, 1, 1, '榕城福州,坊巷里的闽菜源头'],
+    ['厦门', '福建', 24.48, 118.09, 90, '海滨,美食,网红', '鼓浪屿·环岛路·曾厝垵', 1, 1, 1, '海风与老别墅,鼓浪屿一天不够玩'],
+    ['泉州', '福建', 24.87, 118.68, 84, '历史,美食', '开元寺·清净寺·西街', 1, 1, 1, '世界遗产之城,海丝起点与闽南小吃'],
+    ['上海', '上海', 31.23, 121.47, 94, '都市,园林,美食', '外滩·豫园·武康路·迪士尼', 1, 1, 1, '魔都上海,万国建筑与烟火街巷并存'],
+    ['南京', '江苏', 32.06, 118.80, 91, '古都,历史', '中山陵·明孝陵·夫子庙·总统府', 1, 1, 1, '六朝古都,梧桐树下的民国记忆'],
+    ['苏州', '江苏', 31.30, 120.58, 93, '园林,历史', '拙政园·平江路·虎丘·同里古镇', 1, 1, 1, '园林与水巷,江南最精致的一站'],
+    ['无锡', '江苏', 31.49, 120.31, 79, '山水,园林', '鼋头渚·灵山大佛·拈花湾', 1, 1, 1, '太湖明珠,三月樱花与太湖三白'],
+    ['扬州', '江苏', 32.39, 119.41, 84, '园林,美食', '瘦西湖·个园·东关街', 1, 1, 1, '烟花三月下扬州,早茶与园林都讲究'],
+    ['杭州', '浙江', 30.25, 120.17, 95, '园林,山水,都市', '西湖·灵隐寺·西溪湿地·宋城', 1, 1, 1, '上有天堂下有苏杭,西湖十景四季不同'],
+    ['绍兴', '浙江', 30.00, 120.58, 82, '历史,美食', '鲁迅故里·东湖·安昌古镇', 1, 1, 0, '黄酒与乌篷船,课本里的江南水乡'],
+    ['宁波', '浙江', 29.87, 121.55, 75, '海滨,美食', '天一阁·老外滩·东钱湖', 1, 1, 1, '书藏古今港通天下,海鲜与书香气'],
+    ['黄山', '安徽', 29.71, 118.31, 93, '山水', '黄山风景区·宏村·西递', 1, 1, 1, '五岳归来不看山,云海日出与徽派古村'],
+    ['合肥', '安徽', 31.82, 117.23, 68, '历史', '三河古镇·安徽博物院', 1, 1, 1, '科教之城,徽文化的中转枢纽'],
+    ['温州', '浙江', 27.99, 120.70, 72, '山水,美食', '雁荡山·江心屿', 1, 1, 1, '雁荡山奇峰与瓯江夜游'],
+    ['中国香港', '中国香港', 22.32, 114.17, 92, '都市,美食,亲子', '维多利亚港·太平山顶·迪士尼乐园', 1, 1, 1, '维港夜景与山顶缆车,购物美食之城(需港澳通行证及签注)'],
+    ['中国澳门', '中国澳门', 22.20, 113.55, 82, '历史,都市,美食', '大三巴牌坊·路环·官也街', 0, 0, 1, '中西文化交融的小城,葡挞与老街(需港澳通行证及签注)'],
+    ['中国台北', '中国台湾', 25.03, 121.57, 85, '都市,美食,山水', '台北故宫博物院·101 大楼·士林夜市', 0, 0, 1, '宝岛人文与夜市(需大陆居民往来台湾通行证等相关证件)']
+  ];
+
+  /* 扩展数据:名称|普速火车站(距市中心km)|高铁站(距市中心km)|客运站|机场(距市中心km)|铁路走廊|地点串
+     地点串 = 地点1;地点2;…  ,每个地点: 名称~距市中心km~类型~火车可直达(1/0)~到火车站km~到客运站km~备注
+     · 到客运站 km 为 0 表示可在门口/站外上车(旅游专线、定制客运、景区直通车)
+     · 类型:城市地标 古建 世界遗产 景区 山水 主题乐园 居住区 商圈 县城 乡镇 海岛 温泉 枢纽 */
+  const EXT = [
+    '北京|北京站·北京南站|8|北京南站·北京朝阳站|8|六里桥客运主枢纽·四惠长途汽车站|首都机场·大兴机场|25|京沪~京广~京哈~京张~京雄|天安门广场~0.5~城市地标~1~3~4~地铁1号线天安门东站;故宫博物院~1.2~古建~1~4~5~地铁1号线天安门东站;天通苑~13~居住区~1~16~12~地铁5号线,超大型社区,去北京站需换乘;望京~11~商圈~1~14~10~地铁14号线;八达岭长城~62~世界遗产~1~3~0~市郊铁路S2线,或德胜门877路直达,景区直通车门口上车',
+    '天津|天津站|3|天津站·天津西站|3|天津长途汽车客运中心站·通莎客运站|滨海机场|14|京沪~京津~津秦|五大道~2.5~历史街区~1~4~3~地铁1号线小白楼站;意式风情区~1.5~历史街区~1~2~2~天津站步行可达;古文化街~1~历史街区~1~2~2~地铁2号线鼓楼站;武清区~30~居住区~1~32~30~京津城际武清站,进市区很方便;滨海新区~45~商圈~1~48~45~津滨轻轨9号线',
+    '承德|承德站|2|承德南站|9|承德汽车东站|承德普宁机场|20|京哈~京沈|避暑山庄~1~世界遗产~1~3~2~火车站打车5分钟;外八庙·普宁寺~3~古建~1~6~4~公交6路;金山岭长城~90~世界遗产~0~95~0~无铁路,北京/承德出发的旅游专线可门口上车;双桥区~2~居住区~1~3~2~市区核心居住区',
+    '秦皇岛|秦皇岛站|3|北戴河站|15|秦皇岛长途汽车站|北戴河机场|48|京哈~津秦|山海关古城~18~古建~1~2~1~山海关站下车即到,不必回市区;北戴河海滨~20~海滨~1~3~2~北戴河站打车10分钟;老龙头~20~世界遗产~1~4~3~山海关站;海港区~3~居住区~1~4~3~市中心居住区',
+    '大同|大同站|2|大同南站|11|大同汽车客运东站|大同云冈机场|18|大西~京包|云冈石窟~16~世界遗产~0~17~0~无铁路直达,市区3路公交或景区专线门口上车;悬空寺~65~古建~0~68~0~需大巴前往浑源县,可门口接驳;大同古城墙~1~古建~1~2~2~市中心步行;御东新区~8~居住区~1~12~9~新城区,去大同南站近',
+    '太原|太原站|2|太原南站|9|太原汽车客运总站|武宿机场|15|大西~石太~同蒲|晋祠~25~古建~0~28~0~无地铁直达,公交308路或景区专线门口上车;山西博物院~4~博物馆~1~7~5~公交;柳巷商圈~1~商圈~1~3~2~市中心;小店区~10~居住区~1~14~11~离太原南站近',
+    '平遥|平遥站|1|平遥古城站|9|平遥汽车站|无|0|大西~同蒲|平遥古城~0.5~世界遗产~1~1~0.5~古城内步行,高铁站有公交接驳;双林寺~6~古建~0~8~0~需打车或包车;王家大院~35~古建~0~38~0~属介休,需大巴,可在古城门口上车;古城内客栈区~0.3~居住区~1~0.8~0.5~住在古城里最有味道',
+    '呼和浩特|呼和浩特站|1|呼和浩特东站|6|呼和浩特长途汽车站|白塔机场|13|京包~呼张|大召寺~1~古建~1~2~2~市中心;塞上老街~1~历史街区~1~2~2~与大召寺相邻;希拉穆仁草原~90~草原~0~93~0~无铁路,旅游专线大巴可门口上车;回民区~2~居住区~1~3~2~老城区',
+    '沈阳|沈阳站|1|沈阳北站|3|沈阳长途客运总站|桃仙机场|19|京哈~哈大~沈丹|沈阳故宫~1~世界遗产~1~2~2~地铁1号线中街站;张氏帅府~1.5~博物馆~1~3~2~步行可达;中街商圈~1~商圈~1~2~2~地铁1号线;浑南区~14~居住区~1~18~15~新城区,地铁2号线',
+    '大连|大连站|1|大连北站|10|大连北岗桥汽车站·建设街汽车站|周水子机场|10|哈大~丹大|星海广场~6~城市地标~1~8~7~地铁1号线;老虎滩海洋公园~5~主题乐园~1~7~6~公交2路;金石滩~50~海滨~1~52~0~快轨3号线直达,或旅游专线门口上车;高新园区~12~居住区~1~20~13~地铁1号线',
+    '长春|长春站|1|长春西站|8|长春客运总站|龙嘉机场|30|京哈~哈大~长珲|伪满皇宫博物院~2~博物馆~1~3~3~地铁;净月潭~18~景区~1~20~0~轻轨3号线,或景区直通车门口上车;红旗街商圈~3~商圈~1~4~3~有轨电车;净月区~16~居住区~1~20~17~离净月潭近',
+    '哈尔滨|哈尔滨站|1|哈尔滨西站|9|哈尔滨公路大桥客运站|太平机场|35|京哈~哈大~哈齐|中央大街~0.5~历史街区~1~2~2~步行;圣索菲亚教堂~1~古建~1~2~2~步行;冰雪大世界~12~主题乐园~1~15~0~地铁2号线,或冰雪季专线门口上车;群力新区~10~居住区~1~18~11~去哈西站方便;松北区~12~居住区~1~20~13~冰雪大世界同侧',
+    '济南|济南站|1|济南西站|13|济南长途汽车总站|遥墙机场|35|京沪~胶济|趵突泉~1.5~景区~1~3~3~市中心;大明湖~2~景区~1~4~4~火车站步行可达;千佛山~4~山水~1~6~5~公交;高新区~15~居住区~1~28~16~离济南西站远,注意预留接驳时间',
+    '青岛|青岛站|1|青岛北站|12|青岛长途汽车站·四方长途站|胶东机场|39|胶济~青荣~青盐|栈桥~0.5~城市地标~1~1~1~青岛站步行;八大关~4~历史街区~1~6~5~公交;崂山~35~山水~0~38~0~无地铁直达景区门口,景区专线大巴门口上车;西海岸新区~30~居住区~1~35~30~跨海隧道,离青岛北站远;李沧区~12~居住区~1~4~11~离青岛北站近',
+    '烟台|烟台站|1|烟台南站|10|烟台汽车总站|蓬莱机场|40|胶济~青荣|蓬莱阁~70~古建~0~72~0~属蓬莱区,可乘大巴或专线门口上车;烟台山~1~历史街区~1~2~1~市中心;养马岛~30~海岛~0~33~0~旅游专线;芝罘区~2~居住区~1~3~2~老城区',
+    '威海|威海站|3|威海北站|7|威海汽车站|大水泊机场|30|青荣|刘公岛~4~海岛~1~5~0~游船码头在市区,码头门口上车;成山头~50~景区~0~53~0~无铁路,旅游大巴;那香海~35~海滨~0~38~0~专线大巴;环翠区~2~居住区~1~4~3~市区',
+    '郑州|郑州站|1|郑州东站|9|郑州长途汽车中心站|新郑机场|35|京广~徐兰~郑渝~郑阜|少林寺~80~世界遗产~0~82~0~属登封,无铁路,郑州/洛阳发旅游专线门口上车;河南博物院~4~博物馆~1~6~5~地铁;二七广场~1~商圈~1~2~2~市中心;郑东新区~10~居住区~1~3~11~离郑州东站近',
+    '洛阳|洛阳站|2|洛阳龙门站|8|洛阳汽车站|北郊机场|10|徐兰~焦柳|龙门石窟~12~世界遗产~1~10~0~高铁站有公交直达,景区专线门口上车;白马寺~12~古建~0~14~0~无地铁,公交或专线;洛邑古城~2~历史街区~1~4~3~市中心;洛龙区~8~居住区~1~4~9~离龙门站近',
+    '开封|开封站|2|开封北站|8|开封汽车中心站|无|0|徐兰|清明上河园~1.5~景区~1~3~0.5~景区门口有专线;包公祠~1~古建~1~2~1~湖岸边;鼓楼夜市~1~商圈~1~2~1~市中心;龙亭区~2~居住区~1~3~2~老城区',
+    '西安|西安站|2|西安北站|13|西安城西客运站·城南客运站|咸阳机场|40|徐兰~大西~西成~西银|兵马俑~40~世界遗产~1~43~0~9号线到华清池再转,或火车站游5专线门口上车;大雁塔~5~古建~1~8~6~地铁;明城墙~1~古建~1~3~2~市中心;回民街~1~历史街区~1~3~2~钟楼旁;曲江新区~8~居住区~1~16~9~离北站较远;高新区~12~居住区~1~20~13~地铁3号线',
+    '兰州|兰州站|2|兰州西站|8|兰州汽车东站·兰州客运中心|中川机场|70|徐兰~兰新~兰青~包兰|黄河铁桥~1~城市地标~1~3~2~市中心;白塔山~1.5~山水~1~3~2~步行过桥;甘肃省博物馆~4~博物馆~1~6~5~地铁1号线;七里河区~4~居住区~1~8~5~离兰州西站近;中川机场方向~60~居住区~1~65~60~机场很远,建议直接坐城际铁路',
+    '敦煌|敦煌站|5|敦煌站|5|敦煌汽车站|敦煌机场|13|兰新~敦格|莫高窟~25~世界遗产~1~25~0~数字中心换乘景区大巴,专线门口上车;鸣沙山月牙泉~5~沙漠~1~6~0~市区公交3路或专线门口上车;沙州夜市~1~商圈~1~5~2~市中心;七里镇~12~居住区~1~14~13~青海油田生活区',
+    '西宁|西宁站|3|西宁站|3|西宁汽车客运中心|曹家堡机场|28|兰青~青藏|塔尔寺~26~古建~0~28~0~无铁路,公交或专线大巴门口上车;青海湖二郎剑~150~山水~0~155~0~景区直通车,西宁市区集合上车;莫家街~1~商圈~1~3~2~小吃街;海湖新区~6~居住区~1~9~7~新城区',
+    '银川|银川站|3|银川站|3|银川汽车站|河东机场|20|包兰~西银|西夏王陵~30~世界遗产~0~32~0~无铁路,旅游专线门口上车;镇北堡西部影城~35~景区~0~37~0~专线大巴;沙湖~55~景区~0~58~0~专线;金凤区~3~居住区~1~5~4~新城区',
+    '乌鲁木齐|乌鲁木齐站|6|乌鲁木齐站|6|乌鲁木齐南郊客运站·碾子沟客运站|地窝堡机场|17|兰新~南疆|国际大巴扎~1~商圈~1~8~3~市中心;天山天池~90~山水~0~95~0~景区直通车门口上车;红山公园~1~城市地标~1~7~3~市中心;经开区~8~居住区~1~4~9~离高铁站近;天山区~2~居住区~1~8~4~老大城区',
+    '喀什|喀什站|6|喀什站|6|喀什国际汽车站|喀什机场|10|南疆|喀什古城~0.5~历史街区~1~7~2~老城步行;香妃园~4~古建~1~10~5~公交;帕米尔方向(塔县)~290~景区~0~295~0~需长途大巴或包车,办好边防证;老城民居区~1~居住区~1~7~3~住在古城里',
+    '拉萨|拉萨站|6|拉萨站|6|拉萨西郊客运站·北郊客运站|贡嘎机场|55|青藏~拉日|布达拉宫~1~世界遗产~1~7~3~市区;大昭寺·八廓街~1~古建~1~7~3~步行;纳木错~220~山水~0~225~0~无铁路,景区直通车凌晨发车门口上车;城关区~1~居住区~1~7~3~老城区;柳梧新区~5~居住区~1~2~6~离拉萨站近',
+    '成都|成都站|3|成都东站|6|成都东站汽车客运站·茶店子客运站|双流机场·天府机场|18|成渝~成贵~西成~成昆~沪汉蓉|大熊猫繁育研究基地~10~主题乐园~1~13~0~地铁3号线,景区直通车门口上车;宽窄巷子~2~历史街区~1~5~3~地铁;都江堰~55~世界遗产~1~58~0~城际铁路直达,犀浦换乘;天府三街~12~居住区~1~18~13~高新区,地铁1号线;犀浦~15~居住区~1~20~16~离都江堰城际线起点近',
+    '九寨沟|无|0|无|0|九寨沟汽车站|九黄机场|80|无|九寨沟景区~0.5~世界遗产~0~290~0.5~漳扎镇,景区门口上车,成都出发约8小时;黄龙风景区~60~世界遗产~0~330~1~设直通车;漳扎镇~1~乡镇~0~290~0.5~景区门户小镇,住宿集中;沟口民宿区~0.3~居住区~0~290~0.3~步行进景区',
+    '峨眉山|峨眉站|3|峨眉山站|4|峨眉山汽车客运站|无|0|成绵乐~成昆|峨眉山金顶~30~山水~1~32~0~景区大巴+索道,报国寺客运中心门口上车;乐山大佛~35~世界遗产~1~38~0~城际/大巴可到;报国寺片区~6~居住区~1~9~6~景区门口住宿区;峨眉山市区~3~居住区~1~4~3~离高铁站近',
+    '重庆|重庆站|2|重庆北站·重庆西站|8|重庆汽车站·菜园坝·陈家坪|江北机场|21|成渝~渝贵~沪汉蓉~兰渝|洪崖洞~1~城市地标~1~4~2~地铁1/6号线;磁器口~14~历史街区~1~18~0~地铁1号线,景区直通车门口上车;长江索道~1~城市地标~1~4~2~市中心;观音桥~4~商圈~1~9~5~地铁3号线;大学城~25~居住区~1~30~26~离市区远,注意预留时间',
+    '昆明|昆明站|2|昆明南站|22|昆明汽车客运站·东部客运站|长水机场|25|沪昆~昆楚大~中老|滇池海埂大坝~12~山水~1~15~0~公交或专线;石林~78~世界遗产~1~80~0~动车到石林西站,景区专线门口上车;翠湖公园~2~城市地标~1~4~3~市中心;呈贡区~22~居住区~1~2~23~离昆明南站近;北市区~6~居住区~1~8~7~老城区',
+    '大理|大理站|8|大理站|8|大理汽车客运站|荒草坝机场|13|昆楚大~大丽|大理古城~14~历史街区~1~16~0~火车站有古城专线,门口上车;洱海生态廊道~10~山水~1~12~0~骑行或专线;崇圣寺三塔~15~古建~1~17~0~古城旁;才村码头~12~居住区~1~14~12~洱海边民宿区;下关城区~1~居住区~1~8~2~离火车站近',
+    '丽江|丽江站|8|丽江站|8|丽江客运站|三义机场|28|大丽|丽江古城~8~世界遗产~1~10~0~公交或古城专线门口上车;玉龙雪山~30~山水~1~32~0~景区大巴,含索道;束河古镇~12~历史街区~1~14~0~专线;古城区客栈区~8~居住区~1~10~8~古城内不通车,需步行到停车场',
+    '西双版纳|西双版纳站|2|西双版纳站|2|景洪客运站|嘎洒机场|5|中老|告庄西双景·星光夜市~4~商圈~1~6~4~市区打车;中科院热带植物园~60~景区~0~62~0~无铁路,旅游专线门口上车;野象谷~40~景区~1~42~0~动车到野象谷站,景区门口;景洪市区~1~居住区~1~3~2~市中心',
+    '贵阳|贵阳站|2|贵阳北站|7|贵阳客车站·金阳客车站|龙洞堡机场|12|沪昆~贵广~渝贵~成贵|甲秀楼~1~古建~1~3~2~市中心;青岩古镇~30~古镇~0~33~0~无铁路,旅游专线门口上车;黔灵山公园~2~山水~1~4~3~地铁;观山湖区~10~居住区~1~4~11~离贵阳北站近;花果园~3~居住区~1~6~4~超大型社区',
+    '桂林|桂林站|1|桂林北站|6|桂林汽车客运站|两江机场|28|贵广~湘桂|漓江·阳朔~65~山水~1~68~0~漓江游船或动车到阳朔站,竹筏码头门口接驳;象鼻山~1~山水~1~2~1~市中心;龙脊梯田~80~山水~0~82~0~属龙胜,无铁路,专线大巴门口上车;阳朔西街~65~古镇~1~68~0~阳朔站距县城较远,需接驳;七星区~3~居住区~1~5~4~市区',
+    '南宁|南宁站|1|南宁东站|9|南宁琅东客运站·江南客运站|吴圩机场|32|南广~贵广~湘桂|青秀山~9~山水~1~12~0~地铁3号线,景区门口;三街两巷~1~历史街区~1~2~2~市中心;五象新区~7~居住区~1~14~8~新城区;青秀区~3~居住区~1~6~4~市中心',
+    '北海|北海站|2|北海站|2|北海汽车总站·南珠汽车站|福成机场|24|钦北|北海银滩~6~海滨~1~8~0~公交或专线门口上车;涠洲岛~40~海岛~1~42~0~需到国际客运港坐船,码头门口上车;北海老街~1~历史街区~1~3~2~市中心;海城区~1~居住区~1~3~2~市区',
+    '海口|海口站|8|海口东站|4|海口汽车客运总站|美兰机场|18|环岛|骑楼老街~1~历史街区~1~8~2~市中心;假日海滩~8~海滨~1~12~0~公交专线;火山口公园~15~景区~1~18~0~公交;西海岸~10~居住区~1~14~11~新城区;国贸商圈~2~商圈~1~9~3~市中心',
+    '三亚|三亚站|3|三亚站|3|三亚汽车总站|凤凰机场|12|环岛|亚龙湾~25~海滨~1~28~0~旅游专线大巴门口上车;蜈支洲岛~35~海岛~0~38~0~需到后海码头乘船,专线接驳;天涯海角~20~海滨~1~23~0~旅游专线;三亚湾~4~居住区~1~6~4~海边民宿区;海棠湾~35~居住区~1~38~35~离市区远,酒店区',
+    '广州|广州站|1|广州南站|17|广州东站汽车客运站·省汽车客运站|白云机场|28|京广~贵广~南广~广深~广珠|广州塔~4~城市地标~1~6~5~地铁3号线;沙面~4~历史街区~1~6~5~地铁1号线;陈家祠~3~古建~1~5~4~地铁1号线;珠江新城~5~居住区~1~10~6~CBD;番禺万博~17~居住区~1~2~18~离广州南站近',
+    '深圳|深圳站|1|深圳北站|9|深圳福田汽车站·银湖汽车站|宝安机场|28|广深~杭深~京九~广深港|世界之窗~8~主题乐园~1~10~0~地铁1号线,景区门口;深圳湾公园~10~城市地标~1~13~0~地铁9号线;大鹏所城~50~古建~0~53~0~无铁路,假日专线大巴门口上车;南山科技园~12~居住区~1~6~13~地铁1号线;龙华区~12~居住区~1~3~13~离深圳北站近',
+    '珠海|珠海站|2|珠海站|2|拱北汽车客运站·香洲总站|金湾机场|35|广珠|情侣路~3~海滨~1~5~0~公交或专线门口上车;长隆海洋王国~25~主题乐园~1~28~0~城轨+专线,景区门口;外伶仃岛~50~海岛~0~52~0~香洲港乘船,码头门口上车;横琴新区~25~居住区~1~28~26~离长隆近;香洲区~2~居住区~1~4~3~市区',
+    '武汉|汉口站|4|武汉站|13|武汉傅家坡客运站·宏基客运站|天河机场|26|京广~沪汉蓉~武九|黄鹤楼~1~古建~1~5~2~地铁5号线;东湖·湖北省博物馆~6~山水~1~11~0~地铁8号线,景区门口;户部巷~1~历史街区~1~5~2~与黄鹤楼相邻;光谷~14~居住区~1~25~15~离武汉站较远;后湖~8~居住区~1~8~9~离汉口站近',
+    '长沙|长沙站|1|长沙南站|11|长沙汽车南站·汽车西站|黄花机场|25|京广~沪昆|橘子洲~2~城市地标~1~4~3~地铁2号线;岳麓山~5~山水~1~7~0~地铁4号线,山门门口;文和友·坡子街~1~商圈~1~3~2~市中心;梅溪湖~12~居住区~1~23~13~新城区;星沙~14~居住区~1~25~15~离长沙南站较远',
+    '张家界|张家界站|2|张家界西站|9|张家界中心汽车站|荷花机场|6|张吉怀~沪昆|武陵源·森林公园~30~世界遗产~1~33~0~市区汽车站有专线,景区门口上车;天门山~6~山水~1~9~0~索道下站在市区,门口坐索道;玻璃桥·大峡谷~60~景区~0~63~0~无铁路,专线大巴;武陵源区~30~居住区~1~33~30~景区门口住宿区;永定区~2~居住区~1~4~3~市区',
+    '南昌|南昌站|2|南昌西站|11|南昌长途汽车站·徐坊客运站|昌北机场|22|沪昆~京九~昌景黄|滕王阁~1~古建~1~3~2~地铁1号线;八一起义纪念馆~1~博物馆~1~3~2~市中心;万寿宫历史文化街区~1~历史街区~1~3~2~步行;红谷滩新区~6~居住区~1~5~7~离南昌西站近',
+    '景德镇|景德镇站|1|景德镇北站|7|景德镇汽车站|罗家机场|8|昌景黄~京九|陶溪川文创街区~1~商圈~1~3~2~火车站打车5分钟;古窑民俗博览区~3~博物馆~1~5~0~景区专线门口上车;御窑博物馆~1~博物馆~1~3~2~市中心;珠山区~1~居住区~1~3~2~老城区',
+    '武夷山|武夷山站|2|武夷山北站|12|武夷山汽车站|武夷山机场|8|合福|九曲溪竹筏~12~世界遗产~1~14~0~景区观光车,码头门口上车;天游峰~13~山水~1~15~0~景区内接驳;大红袍景区~15~山水~1~17~0~景区观光车;度假区~12~居住区~1~14~12~景区门口住宿集中区;市区~2~居住区~1~4~3~离武夷山北站有距离',
+    '福州|福州站|3|福州南站|15|福州汽车北站·汽车南站|长乐机场|45|杭深~合福|三坊七巷~1~历史街区~1~5~2~地铁1号线;鼓山~8~山水~1~12~0~地铁2号线+缆车,山门门口;上下杭~2~历史街区~1~6~3~市中心;仓山区~6~居住区~1~12~7~老城区;五四北~8~居住区~1~5~9~离福州站近',
+    '厦门|厦门站|1|厦门北站|25|厦门梧村汽车站·枋湖客运中心|高崎机场|10|杭深~合福|鼓浪屿~4~世界遗产~1~6~0~轮渡码头乘船,码头门口上车;环岛路~6~海滨~1~9~0~公交或专线门口;曾厝垵~8~历史街区~1~11~0~公交;集美区~20~居住区~1~4~21~离厦门北站近;湖里区~6~居住区~1~8~7~市区',
+    '泉州|泉州站|8|泉州站|8|泉州汽车客运中心站|晋江机场|14|杭深~合福|开元寺·西街~1~世界遗产~1~9~3~市中心,古城内步行;清净寺~1~古建~1~9~3~与开元寺相邻;洛阳桥~10~古建~1~18~0~公交专线门口;丰泽区~3~居住区~1~6~4~市区;晋江~15~居住区~1~18~16~离机场近',
+    '上海|上海站|3|上海虹桥站|18|上海长途汽车客运总站·虹桥长途汽车站|浦东机场·虹桥机场|30|京沪~沪宁~沪杭~沪昆|外滩~1~城市地标~1~5~2~地铁2/10号线;豫园~1~园林~1~5~2~地铁10号线;武康路~4~历史街区~1~8~5~地铁10/11号线;迪士尼度假区~30~主题乐园~1~35~0~地铁11号线,园区门口;张江~12~居住区~1~30~13~地铁2号线,离虹桥站较远;五角场~9~商圈~1~13~10~地铁10号线',
+    '南京|南京站|2|南京南站|12|南京汽车客运站·小红山站|禄口机场|37|京沪~沪宁~宁杭~宁启|中山陵~10~景区~1~13~0~地铁2号线+观光车,景区门口;明孝陵~11~世界遗产~1~14~0~景区观光车;夫子庙·秦淮河~3~历史街区~1~6~4~地铁3号线;总统府~2~博物馆~1~4~3~地铁2/3号线;仙林~15~居住区~1~22~16~大学城;河西~10~居住区~1~18~11~新城区',
+    '苏州|苏州站|1|苏州北站|12|苏州汽车南站·北广场汽车客运站|无|0|京沪~沪宁|拙政园~3~园林~1~5~4~地铁4号线;平江路~2~历史街区~1~4~3~步行;虎丘~6~古建~1~8~0~公交或专线门口;同里古镇~25~古镇~0~28~0~无铁路直达,旅游专线门口上车;工业园区~12~居住区~1~18~13~离苏州北站较近;木渎~12~居住区~1~14~13~近灵岩山',
+    '无锡|无锡站|1|无锡东站|12|无锡汽车客运站|硕放机场|15|京沪~沪宁|鼋头渚~10~山水~1~13~0~公交1路或专线门口;灵山大佛~30~景区~1~33~0~旅游专线门口上车;拈花湾~32~景区~1~35~0~专线;新吴区~10~居住区~1~4~11~离无锡东站近',
+    '扬州|扬州站|3|扬州东站|8|扬州汽车西站·东站|扬泰机场|35|沪宁~宁启|瘦西湖~3~园林~1~6~4~公交或游船;个园~1~园林~1~4~2~东关街旁;东关街~1~历史街区~1~4~2~市中心;邗江区~6~居住区~1~10~7~新城区;广陵区~2~居住区~1~5~3~老城区',
+    '杭州|杭州站|2|杭州东站|8|杭州汽车客运中心站·九堡站|萧山机场|28|沪杭~沪昆~杭黄~宁杭~杭深|西湖~6~山水~1~11~0~地铁1号线龙翔桥站,景区直通车可在门口上车;灵隐寺~8~古建~1~13~0~公交或专线,寺前广场上车;西溪湿地~9~山水~1~14~0~地铁3号线,园区门口;宋城~12~主题乐园~1~17~0~专线直达;钱江新城~3~居住区~1~10~4~CBD;滨江~8~居住区~1~16~9~高新区;未来科技城~20~居住区~1~30~21~余杭区,离东站较远',
+    '绍兴|绍兴站|1|绍兴北站|10|绍兴汽车客运中心|无|0|沪杭~杭深|鲁迅故里~1~历史街区~1~3~1~市区步行;东湖~5~山水~1~7~0~公交或专线门口;安昌古镇~15~古镇~0~18~0~无铁路,专线大巴;越城区~1~居住区~1~3~2~老城区;柯桥区~10~居住区~1~12~11~轻纺城,离北站较近',
+    '宁波|宁波站|1|宁波站|1|宁波汽车南站·客运中心|栎社机场|12|沪杭~杭深~杭甬|天一阁~1~古建~1~3~2~市中心;老外滩~1~历史街区~1~3~2~三江口;东钱湖~15~山水~1~18~0~公交或专线门口;鄞州区~8~居住区~1~12~9~新城区',
+    '黄山|黄山站|3|黄山北站|13|黄山汽车客运总站|屯溪机场|6|杭黄~合福~昌景黄|黄山风景区(汤口)~60~世界遗产~0~63~0~无铁路进山,山下换景区交通,汤口镇门口上车;宏村~65~世界遗产~0~68~0~无铁路,景区直通车门口上车;西递~55~世界遗产~0~58~0~专线;屯溪老街~1~历史街区~1~4~2~市区;汤口镇~60~乡镇~0~63~1~景区门户,山下住宿区',
+    '合肥|合肥站|2|合肥南站|9|合肥汽车客运总站|新桥机场|32|合宁~合福~商合杭~合蚌|三河古镇~40~古镇~0~43~0~无铁路,旅游专线门口上车;安徽博物院~8~博物馆~1~11~9~新馆在天鹅湖;滨湖新区~12~居住区~1~4~13~离合肥南站近;政务区~8~居住区~1~12~9~新城区',
+    '温州|温州站|2|温州南站|9|温州汽车南站·双屿客运中心|龙湾机场|22|杭深|雁荡山~70~山水~1~73~0~动车到雁荡山站,景区专线门口上车;江心屿~2~山水~1~4~0~轮渡码头门口;鹿城区~2~居住区~1~4~3~市区;瓯海区~6~居住区~1~5~7~离温州南站近',
+    '中国香港|香港红磡站|4|香港西九龙站|2|港珠澳大桥口岸·跨境巴士站|香港机场|34|广深港|维多利亚港·星光大道~1~城市地标~1~5~3~港铁尖沙咀站;太平山顶~4~城市地标~1~8~6~山顶缆车;香港迪士尼~18~主题乐园~1~24~0~港铁迪士尼线,园区门口;沙田~12~居住区~1~16~13~新界,港铁东铁线;将军澳~12~居住区~1~18~13~新界东',
+    '中国澳门|无|0|无|0|关闸口岸·跨境巴士站|澳门机场|5|无|大三巴牌坊~1~世界遗产~0~3~1~老城区步行;氹仔官也街~5~历史街区~0~7~5~威尼斯人片区;路环~8~海滨~0~10~8~安静的老渔村;氹仔~5~居住区~0~7~5~离机场近',
+    '中国台北|台北车站|0|台北车站|0|台北转运站|桃园机场|40|无|台北故宫博物院~9~博物馆~0~11~9~公交或捷运;101 大楼~2~城市地标~0~4~2~捷运;士林夜市~6~商圈~0~8~6~捷运;信义区~2~居住区~0~4~2~CBD;士林区~6~居住区~0~8~6~近夜市'
+  ];
+
+  function parseExt(line) {
+    var p = line.split('|');
+    var head = p.slice(0, 9);
+    var places = p.slice(9).join('|').split(';').map(function (s) {
+      var f = s.split('~');
+      return {
+        n: f[0], km: parseFloat(f[1]) || 0, type: f[2],
+        railDirect: f[3] === '1',
+        hubKm: parseFloat(f[4]) || 0,      // 到最近火车站的距离(km)
+        busKm: parseFloat(f[5]) || 0,      // 到最近客运站/上车点的距离(km),0 = 门口/站外上车
+        note: f[6] || ''
+      };
+    }).filter(function (x) { return x.n; });
+    return {
+      railStation: head[1], railStationKm: parseFloat(head[2]) || 0,
+      hsrStation: head[3], hsrStationKm: parseFloat(head[4]) || 0,
+      busStation: head[5],
+      airport: head[6], airportKm: parseFloat(head[7]) || 0,
+      corridors: head[8].split('~').filter(function (x) { return x && x !== '无'; }),
+      places: places
+    };
+  }
+
+  const EXT_MAP = {};
+  EXT.forEach(function (line) { EXT_MAP[line.split('|')[0]] = parseExt(line); });
+
+  const CITIES = CORE.map(function (r) {
+    var ext = EXT_MAP[r[0]] || { railStation: '', railStationKm: 0, hsrStation: '', hsrStationKm: 0, busStation: '', airport: '', airportKm: 0, corridors: [], places: [] };
+    return {
+      n: r[0], prov: r[1], lat: r[2], lng: r[3], s: r[4],
+      tags: r[5].split(','), spotsSummary: r[6],
+      rail: !!r[7], hsr: !!r[8], air: !!r[9], tip: r[10],
+      island: r[0] === '中国台北' || r[0] === '中国香港' || r[0] === '中国澳门',
+      airOnly: r[0] === '中国台北', noBus: r[0] === '中国台北', strait: r[1] === '海南',
+      railStation: ext.railStation, railStationKm: ext.railStationKm,
+      hsrStation: ext.hsrStation, hsrStationKm: ext.hsrStationKm,
+      busStation: ext.busStation, airport: ext.airport, airportKm: ext.airportKm,
+      corridors: ext.corridors, places: ext.places
+    };
+  });
+
+  const BY_NAME = {};
+  CITIES.forEach(function (c) { BY_NAME[c.n] = c; });
+
+  // 全国性铁路枢纽(用于判断「没有直达车时,在中途哪一站换乘」)
+  const HUBS = ['北京', '郑州', '武汉', '西安', '上海', '广州', '成都', '兰州', '长沙', '南京', '济南', '沈阳', '重庆', '贵阳', '南昌', '合肥', '杭州', '太原'];
+
+  // 地点类型 → 位置属性(用于交通方式决策)
+  const AREA_TYPES = {
+    '城市地标': { kind: 'core', label: '市中心' },
+    '古建': { kind: 'core', label: '市中心/近郊' },
+    '世界遗产': { kind: 'scenic', label: '景区' },
+    '景区': { kind: 'scenic', label: '景区' },
+    '山水': { kind: 'scenic', label: '自然景区' },
+    '草原': { kind: 'scenic', label: '草原景区' },
+    '沙漠': { kind: 'scenic', label: '沙漠景区' },
+    '海岛': { kind: 'scenic', label: '海岛/码头' },
+    '主题乐园': { kind: 'scenic', label: '主题乐园' },
+    '历史街区': { kind: 'core', label: '老城区' },
+    '古镇': { kind: 'scenic', label: '古镇' },
+    '博物馆': { kind: 'core', label: '城区' },
+    '居住区': { kind: 'area', label: '居住区' },
+    '商圈': { kind: 'area', label: '商圈' },
+    '县城': { kind: 'county', label: '县城' },
+    '乡镇': { kind: 'county', label: '乡镇' },
+    '枢纽': { kind: 'hub', label: '交通枢纽' }
+  };
+
+  const INTERESTS = [
+    { key: '古都', label: '古都历史', tags: ['古都', '历史'] },
+    { key: '山水', label: '山水自然', tags: ['山水', '高原'] },
+    { key: '海滨', label: '海滨度假', tags: ['海滨'] },
+    { key: '美食', label: '美食之旅', tags: ['美食'] },
+    { key: '民族', label: '民俗风情', tags: ['民族'] },
+    { key: '都市', label: '都市潮流', tags: ['都市', '网红'] },
+    { key: '冰雪', label: '冰雪温泉', tags: ['冰雪'] },
+    { key: '园林', label: '园林水乡', tags: ['园林'] }
+  ];
+
+  return { CITIES: CITIES, BY_NAME: BY_NAME, HUBS: HUBS, AREA_TYPES: AREA_TYPES, INTERESTS: INTERESTS };
+});
+
+/* ================= 规划引擎 engine.js ================= */
+/* ============================================================
+ * engine.js —— 顺路旅行路线规划引擎(精确地点版)
+ * 依赖 data.js(城市/车站/走廊/精确地点)
+ *   浏览器:  window.TRP_DATA ; Node: require('./data.js')
+ * ============================================================ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) {
+    module.exports = factory(require('./data.js'));
+  } else {
+    root.TRP = factory(root.TRP_DATA);
+  }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (DATA) {
+  'use strict';
+
+  const CITIES = DATA.CITIES;
+  const BY_NAME = DATA.BY_NAME;
+  const HUBS = DATA.HUBS;
+  const AREA_TYPES = DATA.AREA_TYPES;
+  const INTERESTS = DATA.INTERESTS;
+
+  /* ---------------------------------------------------------
+   * 1. 基础几何
+   * --------------------------------------------------------- */
+  const EARTH_R = 6371;
+  const rad = function (d) { return d * Math.PI / 180; };
+
+  function haversine(a, b) {
+    const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+    const la1 = rad(a.lat), la2 = rad(b.lat);
+    const h = Math.pow(Math.sin(dLat / 2), 2) + Math.cos(la1) * Math.cos(la2) * Math.pow(Math.sin(dLng / 2), 2);
+    return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  function axisMetrics(a, b, c) {
+    const cosL = Math.cos(rad((a.lat + b.lat) / 2));
+    const ax = a.lng * cosL, ay = a.lat, bx = b.lng * cosL, by = b.lat;
+    const cx = c.lng * cosL, cy = c.lat;
+    const vx = bx - ax, vy = by - ay, len2 = vx * vx + vy * vy;
+    if (len2 === 0) return { t: 0, off: 0 };
+    const t = ((cx - ax) * vx + (cy - ay) * vy) / len2;
+    const px = ax + t * vx, py = ay + t * vy;
+    return { t: t, off: Math.sqrt(Math.pow(cx - px, 2) + Math.pow(cy - py, 2)) * 111.19 };
+  }
+
+  /* ---------------------------------------------------------
+   * 2. 地点解析:支持「北京·天通苑」「上海 张江」「兵马俑」等写法
+   * --------------------------------------------------------- */
+  const CITY_NAMES = CITIES.map(function (c) { return c.n; }).sort(function (a, b) { return b.length - a.length; });
+
+  function norm(s) {
+    return String(s).replace(/[\s·・、,，\-—/]/g, '').replace(/[（(].*?[)）]/g, '');
+  }
+
+  function cityLevelLocation(city) {
+    return {
+      city: city.n, place: null, label: city.n + '(市区)',
+      lat: city.lat, lng: city.lng, km: 0, type: '市中心', areaKind: 'core',
+      hubKm: city.hsr ? Math.max(3, city.hsrStationKm)
+        : (city.rail ? Math.max(2, city.railStationKm || 3) : 150),
+      busKm: 2, railDirect: true, note: city.busStation ? ('客运站:' + city.busStation) : '',
+      isCity: true, c: city
+    };
+  }
+
+  function spotLocation(city, p) {
+    return {
+      city: city.n, place: p.n, label: city.n + '·' + p.n,
+      lat: city.lat, lng: city.lng, km: p.km, type: p.type,
+      areaKind: (AREA_TYPES[p.type] || { kind: 'area' }).kind,
+      hubKm: p.hubKm, busKm: p.busKm, railDirect: p.railDirect, note: p.note,
+      isCity: false, c: city
+    };
+  }
+
+  function parsePlace(text, areaKind) {
+    if (!text) return null;
+    const raw = String(text).trim();
+    const t = norm(raw);
+    if (!t) return null;
+
+    // 1) 城市名开头 + 具体地点
+    for (let i = 0; i < CITY_NAMES.length; i++) {
+      const cn = CITY_NAMES[i];
+      if (t.indexOf(cn) === 0) {
+        const city = BY_NAME[cn];
+        const rest = t.slice(cn.length);
+        if (!rest) return cityLevelLocation(city);
+        let hit = null;
+        for (let j = 0; j < city.places.length; j++) {
+          const p = city.places[j];
+          const pn = norm(p.n);
+          if (pn === rest || pn.indexOf(rest) === 0 || rest.indexOf(pn) === 0) { hit = p; break; }
+        }
+        if (!hit) {
+          for (let j = 0; j < city.places.length; j++) {
+            const p = city.places[j];
+            const pn = norm(p.n);
+            if (pn.indexOf(rest) >= 0 || rest.indexOf(pn) >= 0) { hit = p; break; }
+          }
+        }
+        if (hit) return spotLocation(city, hit);
+        // 城市存在但这个具体地名没收录 → 按位置类型估算,并标记出来提醒用户
+        return locationFromUnknown(cn, rest, areaKind || 'area');
+      }
+    }
+
+    // 2) 全局按地点名匹配(取推荐度最高的城市)
+    const matches = [];
+    CITIES.forEach(function (city) {
+      city.places.forEach(function (p) {
+        const pn = norm(p.n);
+        if (pn === t || (t.length >= 2 && (pn.indexOf(t) >= 0 || t.indexOf(pn) >= 0))) matches.push({ city: city, p: p });
+      });
+    });
+    if (matches.length) {
+      matches.sort(function (x, y) { return y.city.s - x.city.s; });
+      return spotLocation(matches[0].city, matches[0].p);
+    }
+
+    // 3) 只写了城市名
+    for (let i = 0; i < CITY_NAMES.length; i++) {
+      const cn = CITY_NAMES[i];
+      if (t === cn || t.indexOf(cn) >= 0) {
+        const city = BY_NAME[cn];
+        const rest = t.replace(cn, '');
+        if (!rest) return cityLevelLocation(city);
+        return locationFromUnknown(cn, rest, areaKind || 'area');
+      }
+    }
+    return null;
+  }
+
+  // 未收录的具体地址:按位置类型估算接驳
+  const RELAY_ASSUME = {
+    core: { hubKm: 6, busKm: 3, label: '市中心' },
+    area: { hubKm: 10, busKm: 8, label: '城区/居住区' },
+    suburb: { hubKm: 20, busKm: 18, label: '近郊/新区' },
+    county: { hubKm: 35, busKm: 25, label: '县城/乡镇' },
+    scenic: { hubKm: 60, busKm: 0, label: '景区' }
+  };
+
+  function locationFromUnknown(cityName, placeName, areaKind) {
+    const city = BY_NAME[cityName];
+    if (!city) return null;
+    const a = RELAY_ASSUME[areaKind] || RELAY_ASSUME.area;
+    return {
+      city: city.n, place: placeName || a.label, label: city.n + '·' + (placeName || a.label),
+      lat: city.lat, lng: city.lng, km: a.hubKm, type: a.label, areaKind: areaKind || 'area',
+      hubKm: a.hubKm, busKm: a.busKm, railDirect: false,
+      note: '未收录的具体地址,按「' + a.label + '」估算接驳距离',
+      isCity: false, c: city, assumed: true
+    };
+  }
+
+  /* ---------------------------------------------------------
+   * 3. 交通方式与里程费率(不含接驳与调度)
+   * --------------------------------------------------------- */
+  const MODES = {
+    citybus: { key: 'citybus', label: '城际公交/地铁', icon: '🚇', group: '公共交通', rate: 0.20, min: 3, speed: 45, factor: 1.15, wait: 10, maxKm: 200 },
+    bus: { key: 'bus', label: '城际大巴', icon: '🚌', group: '大巴', rate: 0.42, min: 15, speed: 72, factor: 1.22, wait: 20, maxKm: 950 },
+    charter: { key: 'charter', label: '定制客运/城际拼车', icon: '🚐', group: '大巴', rate: 0.75, min: 60, speed: 80, factor: 1.15, wait: 15, maxKm: 350 },
+    d: { key: 'd', label: '动车 D 二等座', icon: '🚈', group: '高铁/火车', rate: 0.31, min: 18, speed: 200, factor: 1.28, wait: 35, maxKm: 2400 },
+    g: { key: 'g', label: '高铁 G 二等座', icon: '🚄', group: '高铁/火车', rate: 0.44, min: 25, speed: 255, factor: 1.28, wait: 40, maxKm: 2800 },
+    k: { key: 'k', label: '普速列车 硬座', icon: '🚂', group: '高铁/火车', rate: 0.12, min: 8, speed: 75, factor: 1.30, wait: 45, maxKm: 4200 },
+    kw: { key: 'kw', label: '普速列车 硬卧(夜车)', icon: '🛏️', group: '高铁/火车', rate: 0.22, min: 90, speed: 80, factor: 1.30, wait: 40, maxKm: 4200 },
+    air: { key: 'air', label: '飞机 经济舱', icon: '✈️', group: '民航', rate: 0.62, min: 350, speed: 720, factor: 1.06, wait: 110, extra: 90, maxKm: 5000 }
+  };
+  const MODE_ORDER = ['metro', 'taxi', 'ride', 'citybus', 'bus', 'charter', 'd', 'g', 'k', 'kw', 'air'];
+  const RAIL_MODES = ['d', 'g', 'k', 'kw'];
+  const HSR_MODES = ['g', 'd'];
+  const BUS_MODES = ['bus', 'charter'];
+
+  /* ---------------------------------------------------------
+   * 3.1 市内短途(起终点同城:家 ↔ 车站/机场/景点)
+   * --------------------------------------------------------- */
+  function buildLocalOptions(a, b, ctx) {
+    const straight = localStraight(a, b);
+    const road = straight * 1.3;
+    const out = [];
+    const mk = function (mode, label, icon, group, rate, min, speed, wait, walkKm) {
+      const dist = Math.max(road, walkKm || 0);
+      const cost = Math.max(min, dist * rate);
+      const minutes = Math.round(dist / speed * 60) + wait;
+      out.push({
+        mode: mode, label: label, icon: icon, group: group,
+        intercityCost: Math.round(cost), intercityMinutes: minutes,
+        wait: 0, dist: Math.round(dist), straight: Math.round(straight),
+        relayA: { mode: '无需接驳', km: 0, minutes: 0, cost: 0, alt: null },
+        relayB: { mode: '无需接驳', km: 0, minutes: 0, cost: 0, alt: null },
+        transfers: 0, hub: null, scenicTransfer: false, doorPickup: true,
+        cost: Math.round(cost), minutes: minutes, stationLabel: '', direct: true
+      });
+    };
+    if (straight <= 3) {
+      mk('metro', '步行/骑行', '🚶', '市内短途', 0, 0, 5, 0, straight * 1.25);
+    }
+    mk('metro', '地铁/公交', '🚇', '市内公共交通', 0.25, 2, 22, 8);
+    mk('taxi', '打车/网约车', '🚕', '市内打车', 2.6, 14, 28, 5);
+    if (straight >= 8) mk('ride', '顺风车/拼车', '🚗', '市内拼车', 1.2, 12, 26, 12);
+    out.sort(function (x, y) { return MODE_ORDER.indexOf(x.mode) - MODE_ORDER.indexOf(y.mode); });
+    return out;
+  }
+
+  function decideLocalLeg(a, b, ctx) {
+    const options = buildLocalOptions(a, b, ctx);
+    const heavy = ctx.rp === 'taxi';
+    options.forEach(function (o) {
+      let s = 60;
+      if (o.mode === 'metro') s += heavy ? -10 : 14;
+      if (o.mode === 'taxi') s += heavy ? 16 : 4;
+      if (o.mode === 'ride') s += heavy ? 2 : 0;
+      if (ctx.preference === 'speed') s += (30 - o.minutes) / 10;
+      if (ctx.preference === 'cheap') s -= o.cost / 5;
+      if (ctx.preference === 'comfort') s += o.mode === 'taxi' ? 12 : (o.mode === 'metro' ? -6 : 2);
+      if (ctx.preference === 'direct') s += o.mode === 'taxi' ? 8 : 0;
+      o.score = s;
+      o.ruleTags = [];
+      o.reason = o.mode === 'taxi' ? '点对点直接送到门口,赶时间或者带行李时最省事。'
+        : o.mode === 'ride' ? '拼车价格介于地铁和打车之间,提前几分钟叫车就有。'
+          : '地铁/公交班次密、不怕堵车,最省钱的一段。';
+      o.tickets = o.mode === 'taxi' ? '用高德/滴滴叫车,起步价 + 里程计费。'
+        : o.mode === 'ride' ? '在滴滴/哈啰的顺风车入口提前 30 分钟发布行程。'
+          : '手机刷码进站,或用「车来了」看实时到站。';
+    });
+    options.sort(function (x, y) { return y.score - x.score || x.minutes - y.minutes; });
+    options.forEach(function (o, i) { o.recommended = i === 0; });
+    return {
+      from: a, to: b, straight: Math.round(localStraight(a, b)), local: true,
+      options: options, chosen: options[0].mode, rules: [], ruleIds: []
+    };
+  }
+  function straight0(a, b) { return haversine(a.c, b.c); }
+
+  /* 同城两点:地点数据只记录「距市中心 km」,并没有精确坐标。
+   * 直接按城市中心算会恒等于 0,所以用「两点各自距市中心 + 约 60° 夹角」的几何关系估算市内里程。*/
+  function intraCityKm(a, b) {
+    const k1 = a.km || 0, k2 = b.km || 0;
+    if (!k1 && !k2) return 2.5;                       // 两个市中心地点,给一个保守的市内距离
+    return Math.max(Math.sqrt(k1 * k1 + k2 * k2 - k1 * k2), 1.2);
+  }
+  function localStraight(a, b) {
+    if (a.city && a.city === b.city) return intraCityKm(a, b);
+    return Math.max(haversine(a.c, b.c), 0.4);
+  }
+
+  /* ---------------------------------------------------------
+   * 4. 接驳(门到门的关键):小区/酒店/景区 → 车站
+   * --------------------------------------------------------- */
+  function relayLeg(km, ctx) {
+    if (!km || km <= 0.35) return { mode: '门口上车', km: 0, minutes: 6, cost: 0, alt: null };
+    if (km <= 1.2) return { mode: '步行', km: km, minutes: Math.round(km * 13), cost: 0, alt: null };
+
+    const transit = { mode: '地铁/公交', km: km, minutes: Math.round(km / 22 * 60) + 10, cost: Math.round(Math.max(2, km * 0.25)) };
+    const taxi = { mode: '打车/网约车', km: km, minutes: Math.round(km / 30 * 60) + 6, cost: Math.round(Math.max(13, 4 + 2.6 * km)) };
+    let pick;
+    if (km > 60) {
+      pick = { mode: '打车/网约车/包车', km: km, minutes: Math.round(km / 55 * 60) + 8, cost: Math.round(Math.max(60, km * 2.1)), alt: transit };
+    } else if (ctx.rp === 'taxi') {
+      pick = taxi; pick.alt = transit;
+    } else {
+      pick = transit; pick.alt = taxi;
+    }
+    return pick;
+  }
+
+  /* ---------------------------------------------------------
+   * 5. 换乘判定:用铁路走廊 + 枢纽近似真实路网
+   * --------------------------------------------------------- */
+  function sharedCorridor(A, B) {
+    return A.corridors.some(function (c) { return B.corridors.indexOf(c) >= 0; });
+  }
+  function nearestHub(A, B) {
+    let best = null, bestD = Infinity;
+    HUBS.forEach(function (h) {
+      if (h === A.n || h === B.n) return;
+      const c = BY_NAME[h];
+      if (!c) return;
+      const d = haversine(A, c) + haversine(c, B);
+      if (d < bestD) { bestD = d; best = c; }
+    });
+    return best;
+  }
+  function transferInfo(A, B, mode, straight, a, b) {
+    if (mode === 'air' || mode === 'citybus' || mode === 'charter') return { transfers: 0, hub: null, extraMin: 0, extraCost: 0 };
+    const scenic = (a && a.areaKind === 'scenic') || (b && b.areaKind === 'scenic') ||
+      (a && a.areaKind === 'county') || (b && b.areaKind === 'county');
+    if (mode === 'bus') {
+      if (scenic && straight > 250) {
+        // 景区/乡镇没有长途直达车,得先到市区客运站集散再换专线
+        return { transfers: 1, hub: null, extraMin: 65, extraCost: 25, scenic: true };
+      }
+      if (straight <= 900) return { transfers: 0, hub: null, extraMin: 0, extraCost: 0 };
+      return { transfers: 1, hub: nearestHub(A, B), extraMin: 90, extraCost: 30 };
+    }
+    if (sharedCorridor(A, B)) return { transfers: 0, hub: null, extraMin: 0, extraCost: 0 };
+    const hub = nearestHub(A, B);
+    const long = straight > 1800;
+    return { transfers: 1, hub: hub, extraMin: long ? 100 : 70, extraCost: Math.round(straight * 0.03) };
+  }
+
+  // 大巴的接驳:景区/乡镇的「门口上车」只在短途(专线集散)时才成立,
+  // 长途需先回市区客运站,否则会低估接驳成本
+  function busRelayKm(loc, straight) {
+    if (straight <= 150) return loc.busKm;
+    if (loc.busKm > 0) return loc.busKm;
+    return Math.max(6, loc.km * 0.85);
+  }
+
+  /* ---------------------------------------------------------
+   * 6. 生成一段的全部候选交通方案(门到门 时间 + 费用)
+   * --------------------------------------------------------- */
+  function buildOptions(a, b, ctx) {
+    const A = a.c, B = b.c;
+    const straight = haversine(A, B);
+    const crossBorder = !!(A.island || B.island);
+    const crossStrait = (A.strait !== B.strait);
+    const out = [];
+    const filter = ctx.only;
+
+    function add(key, opts) {
+      const m = MODES[key];
+      if (filter === 'rail' && RAIL_MODES.indexOf(key) < 0) return;
+      if (filter === 'bus' && BUS_MODES.indexOf(key) < 0 && key !== 'citybus') return;
+      opts = opts || {};
+      if (straight > m.maxKm && !opts.force) return;
+
+      const dist = straight * m.factor;
+      let intercityCost = Math.max(m.min, dist * m.rate) + (m.extra || 0);
+      let intercityMin = Math.round(dist / m.speed * 60);
+      const ti = transferInfo(A, B, key, straight, a, b);
+      intercityMin += ti.extraMin;
+      intercityCost += ti.extraCost;
+
+      let fromKm, toKm, stationLabel;
+      if (key === 'bus') {
+        fromKm = busRelayKm(a, straight); toKm = busRelayKm(b, straight);
+        stationLabel = A.busStation || '汽车站';
+      }
+      else if (key === 'charter') { fromKm = Math.max(0, a.busKm * 0.15); toKm = Math.max(0, b.busKm * 0.15); stationLabel = '定制客运上门接送点'; }
+      else if (key === 'citybus') { fromKm = Math.max(1, a.hubKm * 0.5); toKm = Math.max(1, b.hubKm * 0.5); stationLabel = '城际公交站'; }
+      else if (key === 'air') { fromKm = A.airportKm; toKm = B.airportKm; stationLabel = A.airport || '机场'; }
+      else {
+        const useHsr = HSR_MODES.indexOf(key) >= 0;
+        fromKm = useHsr ? Math.max(a.hubKm, a.c.hsrStationKm || 0) : a.hubKm;
+        toKm = useHsr ? Math.max(b.hubKm, b.c.hsrStationKm || 0) : b.hubKm;
+        stationLabel = (useHsr ? (A.hsrStation || A.railStation) : (A.railStation || '')) || '火车站';
+      }
+
+      const relayA = relayLeg(fromKm, ctx);
+      const relayB = relayLeg(toKm, ctx);
+      let relayCost = relayA.cost + relayB.cost;
+      let relayMin = relayA.minutes + relayB.minutes;
+      if (ti.transfers) { relayMin += 25; relayCost += 20; }
+
+      out.push({
+        mode: key, label: m.label, icon: m.icon, group: m.group,
+        intercityCost: Math.round(intercityCost), intercityMinutes: intercityMin,
+        wait: m.wait, dist: Math.round(dist), straight: Math.round(straight),
+        relayA: relayA, relayB: relayB,
+        transfers: ti.transfers, hub: ti.hub ? ti.hub.n : null,
+        scenicTransfer: !!ti.scenic,
+        doorPickup: (key === 'bus' && fromKm <= 0.4) || key === 'charter',
+        cost: Math.round(intercityCost + relayCost),
+        minutes: Math.round(intercityMin + m.wait + relayMin),
+        stationLabel: stationLabel, direct: ti.transfers === 0
+      });
+    }
+
+    if (crossBorder) {
+      if (straight <= 650 && !A.noBus && !B.noBus) add('bus', { force: true });
+      if (A.rail && B.rail && A.hsr && B.hsr && straight <= 600) add('g');
+      if (A.air && B.air) add('air', { force: true });
+      if (straight <= 300 && !A.noBus && !B.noBus) add('charter', { force: true });
+    } else {
+      if (straight <= 200 && !crossStrait) add('citybus', { force: true });
+      if (!crossStrait || straight <= 300) add('bus');
+      if (straight <= 700 && !crossStrait) add('charter');
+      if (A.rail && B.rail) {
+        if (A.hsr && B.hsr && !crossStrait) {
+          add('g');
+          if (straight >= 180) add('d');
+        }
+        add('k', { force: crossStrait });
+        if (straight >= 600) add('kw', { force: crossStrait });
+      }
+      if (straight >= 700 && A.air && B.air) add('air');
+    }
+    if (!out.length) add('bus', { force: true });
+    out.sort(function (x, y) { return MODE_ORDER.indexOf(x.mode) - MODE_ORDER.indexOf(y.mode); });
+    return out;
+  }
+
+  /* ---------------------------------------------------------
+   * 7. 交通方式决策规则(严格按 6 条顺序判断)
+   * --------------------------------------------------------- */
+  const RULE_TEXT = {
+    R1: '① 短途(<300km)→ 优先城际大巴/定制客运',
+    R2: '② 端点在县城/景区或离火车站太远 → 大巴/专线直达',
+    R3: '③ 该时段火车没班次 → 夜班大巴/定制客运',
+    R4: '④ 带小孩/行李多/老人 → 大巴更省事',
+    R5: '⑤ 节假日/春运 → 大巴兜底',
+    R6: '⑥ 长途(>400km)且两端通高铁 → 高铁最稳妥'
+  };
+
+  function placeKindLabel(loc) {
+    if (loc.areaKind === 'scenic') return '景区';
+    if (loc.areaKind === 'county') return '县城/乡镇';
+    return null;
+  }
+
+  function evaluateRules(a, b, ctx, straight) {
+    const A = a.c, B = b.c;
+    const hits = [];
+    const specialTags = ctx.userTags.filter(function (t) {
+      return ['带小孩', '行李多', '老年人', '价格敏感', '扶老携幼'].indexOf(t) >= 0;
+    });
+    const night = ctx.departHour != null && (ctx.departHour >= 23 || ctx.departHour < 5);
+    const holiday = ctx.dateTags.some(function (t) { return ['节假日', '春运', '黄金周'].indexOf(t) >= 0; });
+
+    if (straight < 300) hits.push({ id: 'R1', target: 'bus', weight: 24 });
+
+    const badRail = [];
+    [a, b].forEach(function (loc) {
+      const c = loc.c;
+      if (!c.rail) badRail.push(loc.city + '没有火车站');
+      else if (loc.hubKm > 10 && loc.areaKind !== 'core' && loc.areaKind !== 'hub') {
+        badRail.push(loc.place ? (loc.label + '离火车站约 ' + Math.round(loc.hubKm) + ' 公里') : (loc.city + '火车站离市区约 ' + Math.round(loc.hubKm) + ' 公里'));
+      }
+      const pk = placeKindLabel(loc);
+      if (pk && badRail.indexOf(loc.label + '在' + pk) < 0) badRail.push(loc.label + '在' + pk);
+    });
+    if (badRail.length) hits.push({ id: 'R2', target: 'bus', weight: 26, detail: badRail });
+
+    if (night) hits.push({ id: 'R3', target: 'night', weight: 20 });
+    if (specialTags.length) hits.push({ id: 'R4', target: 'bus', weight: 18, detail: specialTags });
+    if (holiday) hits.push({ id: 'R5', target: 'bus', weight: 14, detail: ctx.dateTags });
+
+    const bothHsr = A.hsr && B.hsr && a.hubKm <= 30 && b.hubKm <= 30;
+    const r6 = straight > 400 && bothHsr && !specialTags.length;
+    if (r6) hits.push({ id: 'R6', target: 'rail', weight: 24 });
+
+    return { hits: hits, specialTags: specialTags, night: night, holiday: holiday, r6: r6, bothHsr: bothHsr, badRail: badRail };
+  }
+
+  function scoreOptions(options, a, b, ctx, ev) {
+    const straight = options.length ? options[0].straight : haversine(a.c, b.c);
+    const maxMin = Math.max.apply(null, options.map(function (o) { return o.minutes; }));
+    const maxCost = Math.max.apply(null, options.map(function (o) { return o.cost; }));
+
+    options.forEach(function (o) {
+      let s = 60;
+      const why = [];
+      const isBus = BUS_MODES.indexOf(o.mode) >= 0 || o.mode === 'citybus';
+      const isHsr = HSR_MODES.indexOf(o.mode) >= 0;
+
+      ev.hits.forEach(function (h) {
+        if (h.target === 'bus' && isBus) { s += h.weight; if (why.indexOf(h.id) < 0) why.push(h.id); }
+        if (h.target === 'rail' && isHsr) { s += h.weight; if (why.indexOf(h.id) < 0) why.push(h.id); }
+        if (h.target === 'night') {
+          if (o.mode === 'kw') { s += 22; why.push('R3'); }
+          else if (o.mode === 'charter') { s += 20; why.push('R3'); }
+          else if (o.mode === 'bus') { s += 16; why.push('R3'); }
+          else s -= 30;
+        }
+      });
+
+      if (o.mode === 'bus') {
+        if (straight > 900) s -= 70;
+        else if (straight > 650) s -= 22;
+        if (o.transfers) s -= 16;
+        if (o.scenicTransfer) s -= 14;          // 景区/乡镇没有直达车,要先进市区集散
+      }
+      // 规则1/2/4/5 的理由都是「门到门时间不输火车」。真输了就不该硬推大巴,
+      // 但既然这几条规则本身就是结构性理由(短途/没火车站/带娃/节假日),
+      // 命中时就把容忍度放大,只有差距大到不合理才回头压分。
+      if (BUS_MODES.indexOf(o.mode) >= 0) {
+        const rail = options.filter(function (x) { return RAIL_MODES.indexOf(x.mode) >= 0; });
+        if (rail.length) {
+          const bestRail = Math.min.apply(null, rail.map(function (x) { return x.minutes; }));
+          const keep = ev.hits.some(function (h) { return h.target === 'bus'; });
+          const limit = keep ? bestRail * 1.8 + 100 : bestRail * 1.35 + 30;
+          if (o.minutes > limit) { s -= 28; o.slowerThanRail = true; }
+        }
+      }
+      if (o.mode === 'citybus' && straight > 60) s -= 14;
+      if (o.mode === 'citybus' && straight > 200) s -= 40;
+      if (isHsr) {
+        if (straight <= 300) s -= 26;
+        else if (straight <= 400) s -= 10;
+        if (ev.badRail.length) s -= 18;
+        if (o.transfers) s -= 14;
+        if (ev.holiday) s -= 8;
+        if (ev.specialTags.length) s -= 6;
+      }
+      if (o.mode === 'k') {
+        if (straight > 1500) s -= 26;
+        if (straight > 350) s -= 10;      // 超过 5 小时车程的硬座,得真的便宜不少才推
+        if (ev.specialTags.indexOf('价格敏感') >= 0) s += 12;
+      }
+      // 带小孩/扶老携幼长途坐硬座基本不可行;这种情况下硬卧、高铁、飞机才是现实选项
+      const family = ev.specialTags.indexOf('带小孩') >= 0 ||
+        ev.specialTags.indexOf('老年人') >= 0 || ev.specialTags.indexOf('扶老携幼') >= 0;
+      if (o.mode === 'k' && family) s -= straight > 400 ? 34 : 14;
+      if (o.mode === 'k' && !family && ev.specialTags.indexOf('行李多') >= 0 && straight > 400) s -= 12;
+      if (o.mode === 'kw' && family && straight > 500) s += 10;
+      if (o.mode === 'air' && family && straight > 1200) s += 12;
+      if (o.mode === 'kw') {
+        if (o.transfers) s -= 10;
+        if (ev.specialTags.indexOf('老年人') >= 0) s -= 4;
+      }
+      if (o.mode === 'charter') {
+        if (straight > 250) s -= 26;
+        else if (straight > 150) s -= 8;
+      }
+      if (o.mode === 'air') {
+        if (straight < 600) s -= 80;
+        else if (straight < 900) s -= 10;
+        if (straight >= 1500) s += 16;
+        if (ev.specialTags.indexOf('老年人') >= 0) s -= 6;
+        if (ev.specialTags.indexOf('价格敏感') >= 0) s -= 10;
+      }
+
+      const p = ctx.preference;
+      if (p === 'speed') s += (maxMin - o.minutes) / Math.max(maxMin, 1) * 34;
+      else if (p === 'direct') s += o.transfers === 0 ? 14 : -16;
+      else if (p === 'cheap') s += (maxCost - o.cost) / Math.max(maxCost, 1) * 30;
+      else if (p === 'comfort') {
+        if (o.mode === 'charter') s += 12;
+        else if (o.mode === 'bus') s += 9;
+        else if (o.mode === 'kw') s += 8;
+        else if (isHsr) s += 14;
+        else if (o.mode === 'k') s -= 16;
+        else if (o.mode === 'air') s += 2;
+        s += o.relayA.mode.indexOf('打车') >= 0 ? 6 : 0;
+        s -= o.minutes / 60 * 1.6;             // 舒适也要考虑别在路上耗太久
+      }
+
+      o.score = s;
+      o.ruleTags = why;
+    });
+
+    // 同分时定序:
+    //  · 默认用「广义花费」= 票价 + 时间 × 1.2 元/分钟(约 72 元/小时的机会成本),
+    //    既不会为了省几十块让人坐 20 小时硬座,也不会为省 1 小时多花几百块;
+    //  · 「最经济」那条路线改成直接比价格,帮用户把每一段都压到最低。
+    options.sort(function (x, y) {
+      const d = y.score - x.score;
+      if (d) return d;
+      if (ctx.tieBreak === 'cost') return (x.cost - y.cost) || (x.minutes - y.minutes);
+      return (x.cost + x.minutes * 1.2) - (y.cost + y.minutes * 1.2);
+    });
+    options.forEach(function (o, i) { o.recommended = i === 0; });
+    return options;
+  }
+
+  /* ---------------- 推荐理由 / 购票建议(旅行助手语气) ---------------- */
+  function buildReason(o, a, b, ctx, ev, options) {
+    const km = Math.round(o.straight);
+    const dest = b.place || b.city;
+    const sadv = ev.specialTags;
+    const opts = options || [];
+
+    if (BUS_MODES.indexOf(o.mode) >= 0) {
+      if (o.mode === 'charter') {
+        return '这段叫一辆定制客运最合适——能上门接、直接送到' + dest + ',不用拎着箱子先跑去汽车站,门到门常常比坐火车还快。';
+      }
+      if (o.scenicTransfer) {
+        return '这段建议坐大巴:' + dest + '在市区之外,大巴先到市区客运站,再换景区专线或接驳车,不用像火车那样从火车站再倒一趟车。';
+      }
+      if (ev.hits.some(function (h) { return h.id === 'R2'; })) {
+        return '这段建议坐大巴:' + ev.badRail[0] + ',' + (o.doorPickup ? '而大巴可以站外/门口上车,' : '大巴不用往市区火车站绕,') + '直接到' + dest + ',不用像火车那样先回市区再换乘。';
+      }
+      if (ev.hits.some(function (h) { return h.id === 'R1'; })) {
+        const hsr = opts.filter(function (x) { return HSR_MODES.indexOf(x.mode) >= 0; })
+          .sort(function (x, y) { return x.cost - y.cost; })[0];
+        let txt = '只有 ' + km + ' 公里,这段建议坐大巴:站外就能上车、直接开进市区,' +
+          '不用像火车那样先绕到火车站再倒一趟,综合门到门时间不输火车';
+        if (hsr && hsr.cost > o.cost) txt += ',还比高铁便宜 ' + (hsr.cost - o.cost) + ' 元';
+        if (sadv.length) txt += ',行李舱大、上下车也方便';
+        if (o.slowerThanRail) txt += '(时间会比高铁多花一些,但省掉了提前赶去车站安检的功夫)';
+        return txt + '。';
+      }
+      if (sadv.length) {
+        return '你们' + sadv.join('、') + ',大巴行李舱空间大、上下车方便,也不用拖着箱子在火车站里换乘,综合成本更低。';
+      }
+      if (ev.holiday) {
+        return '节假日火车票不好抢,大巴班次密、能现场买票,是可靠的兜底方案,服务区还能下车透口气。';
+      }
+      return '这段大巴班次密,上下车都在市区,不用提前很久到站安检,整体更省心。';
+    }
+    if (o.mode === 'citybus') return '两地挨得很近,城际公交/地铁随到随走,不用提前买票,比专门跑一趟火车站划算。';
+    if (o.mode === 'air') {
+      return km > 1500 ? '这个距离只有飞机能把当天时间省下来,直飞 ' + km + ' 公里,落地再打车进城。' : '坐飞机能把时间压到最短,但要预留值机安检和往返机场的时间。';
+    }
+    if (o.mode === 'kw') return '安排夜车硬卧最划算:睡一觉就到,省下一晚住宿,白天还能直接开始玩。';
+    if (o.mode === 'k') return '普速列车票价最低' + (o.straight > 600 ? ',而且常有直达车,适合不赶时间的玩法' : '') + ',就是路上要多花些时间。';
+    if (HSR_MODES.indexOf(o.mode) >= 0) {
+      if (o.transfers) return '这段得坐火车:' + (o.hub ? '需要在 ' + o.hub + ' 换乘一次' : '中途要换乘一次') + ',不过高铁准点、坐着舒服,总时间还算可控。';
+      if (ev.r6) return km + ' 公里这个距离,高铁是最优解:两端都有高铁站、能直达,准点率高,路上还能踏实休息。';
+      return '两地有直达火车,不用中途换乘,按点发车最稳妥' + (ev.night ? ',不过夜间班次很少,记得先确认车次' : '') + '。';
+    }
+    return '综合时间与花费比较均衡的一个选择。';
+  }
+
+  function buildTickets(o, a, b, ctx) {
+    const A = a.c, B = b.c;
+    if (o.mode === 'bus') {
+      const from = o.doorPickup ? (a.place || a.city) + '(站外上车点)' : (A.busStation || A.n + '汽车站');
+      return '在「巴士管家」或携程汽车票搜「' + A.n + '·' + from + ' → ' + B.n + '」的班次' +
+        (o.doorPickup ? ',顺口问一下民宿/景区客服怎么在门口上车' : '') +
+        (o.scenicTransfer ? ';到市区客运站后再买景区专线或接驳车的票' : '') + ';节假日建议提前 1 天订。';
+    }
+    if (o.mode === 'charter') return '在「巴士管家」的定制客运/城际拼车入口,或在高德/滴滴的「城际」里下单,上门地址填「' + a.label + '」,一般提前 2-4 小时都还有位。';
+    if (o.mode === 'citybus') return '到当地公交枢纽直接刷码上车,或用「车来了」查班次,不需要提前买票。';
+    if (RAIL_MODES.indexOf(o.mode) >= 0) {
+      const st = HSR_MODES.indexOf(o.mode) >= 0 ? (A.hsrStation || A.railStation) : (A.railStation || '');
+      return '12306 查「' + A.n + ' → ' + B.n + '」' + (st ? ',从' + st + '上车' : '') +
+        (o.transfers && o.hub ? ';需要中途在 ' + o.hub + ' 换乘,买票时选「' + o.hub + '换乘」方案更省事' : '') +
+        (ctx.dateTags.length ? ';旺季放票后尽快抢,记得勾选候补。' : ';热门区段建议提前 1-2 天买。');
+    }
+    if (o.mode === 'air') return '在航司官网或携程/飞猪比价,注意' + (A.airport || '机场') + '离市区约 ' + Math.round(A.airportKm) + ' 公里,预留 2 小时安检;行李多可以先买托运额度。';
+    return '';
+  }
+
+  function decideLeg(a, b, ctx) {
+    const options = buildOptions(a, b, ctx);
+    const straight = haversine(a.c, b.c);
+    const ev = evaluateRules(a, b, ctx, straight);
+    scoreOptions(options, a, b, ctx, ev);
+    options.forEach(function (o) {
+      o.reason = buildReason(o, a, b, ctx, ev, options);
+      o.tickets = buildTickets(o, a, b, ctx);
+    });
+    return {
+      from: a, to: b, straight: Math.round(straight),
+      options: options, chosen: options[0].mode,
+      rules: ev.hits.map(function (h) { return { id: h.id, text: RULE_TEXT[h.id], target: h.target, detail: h.detail }; }),
+      ruleIds: ev.hits.map(function (h) { return h.id; })
+    };
+  }
+
+  /* ---------------------------------------------------------
+   * 8. 顺路候选城市筛选
+   * --------------------------------------------------------- */
+  function findCandidates(A, B, D, prefs, exclude) {
+    const maxRatio = prefs.maxRatio, interestTags = prefs.interestTags || [];
+    const pool = [];
+    CITIES.forEach(function (c) {
+      if (c.n === A.n || c.n === B.n) return;
+      if (exclude && exclude.indexOf(c.n) >= 0) return;
+      const d1 = haversine(A, c), d2 = haversine(c, B);
+      const ratio = (d1 + d2) / D;
+      const m = axisMetrics(A, B, c);
+      const add = d1 + d2 - D;
+      if (m.t <= 0.05 || m.t >= 0.95) return;
+      if (ratio > maxRatio) return;
+      if (add > Math.max(D * 0.85, 300)) return;
+      if (m.off > Math.max(D * 0.32, 260)) return;
+      const match = c.tags.some(function (t) { return interestTags.indexOf(t) >= 0; }) ? 1 : 0;
+      pool.push({
+        c: c, ratio: ratio, t: m.t, off: m.off, add: add, match: match,
+        weight: c.s - 55 * (ratio - 1) - m.off / Math.max(D, 1) * 30 + match * 9
+      });
+    });
+    pool.sort(function (x, y) { return y.weight - x.weight; });
+    return pool;
+  }
+
+  function combinations(arr, k) {
+    const res = [];
+    (function walk(start, cur) {
+      if (cur.length === k) { res.push(cur.slice()); return; }
+      for (let i = start; i < arr.length; i++) { cur.push(arr[i]); walk(i + 1, cur); cur.pop(); }
+    })(0, []);
+    return res;
+  }
+
+  function geoLength(nodes) {
+    let sum = 0;
+    for (let i = 0; i < nodes.length - 1; i++) sum += haversine(nodes[i], nodes[i + 1]);
+    return sum;
+  }
+
+  function toNode(n, isStop) {
+    return {
+      n: n.city, label: n.label, place: n.place, lat: n.lat, lng: n.lng,
+      type: n.type, prov: n.c.prov, s: n.c.s,
+      spots: n.place ? (n.note || n.place) : n.c.spotsSummary, isStop: !!isStop
+    };
+  }
+
+  /* ---------------------------------------------------------
+   * 9. 组装路线
+   * --------------------------------------------------------- */
+  function copyCtx(ctx, tieBreak) {
+    return {
+      preference: ctx.preference, departHour: ctx.departHour, dateTags: ctx.dateTags,
+      userTags: ctx.userTags, only: ctx.only, rp: ctx.rp, tieBreak: tieBreak
+    };
+  }
+
+  function buildRoute(a, b, chain, ctx, meta) {
+    const nodes = [a].concat(chain.map(function (x) {
+      return x.place ? spotLocation(x.c, x.place) : cityLevelLocation(x.c);
+    })).concat([b]);
+
+    // 「最经济」那条路线:同分时按价格定序,把每一段都压到最低
+    const legCtx = meta.family === 'eco' ? copyCtx(ctx, 'cost') : ctx;
+
+    const segments = [];
+    let cost = 0, minutes = 0, km = 0, transfers = 0;
+    for (let i = 0; i < nodes.length - 1; i++) {
+      const leg = decideLeg(nodes[i], nodes[i + 1], legCtx);
+      if (meta.railOnly) {
+        // 「全程高铁」:强制从铁路方式里挑最快的
+        const rail = leg.options.filter(function (o) { return RAIL_MODES.indexOf(o.mode) >= 0; });
+        if (rail.length) {
+          const hsrOnly = rail.filter(function (o) { return HSR_MODES.indexOf(o.mode) >= 0; });
+          const src = (hsrOnly.length ? hsrOnly : rail).slice().sort(function (x, y) { return x.minutes - y.minutes; });
+          leg.chosen = src[0].mode;
+        }
+      }
+      const picked = leg.options.filter(function (o) { return o.mode === leg.chosen; })[0] || leg.options[0];
+      cost += picked.cost; minutes += picked.minutes; km += picked.dist; transfers += picked.transfers;
+      segments.push(leg);
+    }
+
+    const geo = geoLength(nodes), direct = Math.max(haversine(a.c, b.c), 1);
+    const stops = chain.map(function (x) {
+      return {
+        n: x.c.n, place: x.place ? x.place.n : null, forced: !!x.forced,
+        days: x.place ? 1 : (x.c.s >= 85 ? 2 : 1),
+        spots: x.place ? x.place.n : x.c.spotsSummary,
+        score: x.c.s, tip: x.place ? (x.place.note || x.c.tip) : x.c.tip, tags: x.c.tags
+      };
+    });
+
+    return {
+      id: meta.id, title: meta.title, desc: meta.desc, color: meta.color, family: meta.family,
+      fromLabel: a.label, toLabel: b.label,
+      nodes: nodes.map(function (n, i) { return toNode(n, i > 0 && i < nodes.length - 1); }),
+      chain: chain, stops: stops, segments: segments,
+      cost: cost, minutes: minutes, km: km, transfers: transfers,
+      geoKm: Math.round(geo), directKm: Math.round(direct),
+      ratio: geo / direct,
+      score: chain.reduce(function (s, x) { return s + x.c.s; }, 0),
+      stayDays: stops.reduce(function (s, x) { return s + x.days; }, 0)
+    };
+  }
+
+  function recompute(route) {
+    let cost = 0, minutes = 0, km = 0, transfers = 0;
+    route.segments.forEach(function (seg) {
+      const o = seg.options.filter(function (x) { return x.mode === seg.chosen; })[0] || seg.options[0];
+      seg.chosen = o.mode;
+      cost += o.cost; minutes += o.minutes; km += o.dist; transfers += o.transfers;
+    });
+    route.cost = cost; route.minutes = minutes; route.km = km; route.transfers = transfers;
+    return route;
+  }
+
+  function fmtDuration(min) {
+    const h = Math.floor(min / 60), m = min % 60;
+    if (h <= 0) return m + ' 分钟';
+    if (m === 0) return h + ' 小时';
+    return h + ' 小时 ' + m + ' 分';
+  }
+
+  /* ---------------------------------------------------------
+   * 10. 主规划函数
+   * --------------------------------------------------------- */
+  const COLORS = ['#2f6fed', '#0ea5a4', '#b45309', '#7c3aed', '#dc2626', '#0f766e'];
+
+  function plan(opts) {
+    const a = opts.fromLoc || parsePlace(opts.from);
+    const b = opts.toLoc || parsePlace(opts.to);
+    if (!a || !b) throw new Error('地点未识别:' + (!a ? opts.from : opts.to));
+
+    const specialTags = ['带小孩', '行李多', '老年人', '价格敏感', '扶老携幼'];
+    const ctx = {
+      preference: opts.preference || 'balanced',
+      departHour: (opts.departHour === '' || opts.departHour == null) ? null : Number(opts.departHour),
+      dateTags: opts.dateTags || [],
+      userTags: opts.userTags || [],
+      only: opts.only || null,
+      rp: (opts.preference === 'comfort' || (opts.userTags || []).some(function (t) { return specialTags.indexOf(t) >= 0; })) ? 'taxi' : 'transit'
+    };
+    const A = a.c, B = b.c;
+    const D = Math.max(haversine(A, B), 1);
+    const prefs = { maxRatio: opts.maxRatio || 1.4, interestTags: opts.interestTags || [] };
+
+    const mustLocs = (opts.mustVisit || []).map(function (t) { return parsePlace(t, opts.mustAreaKind); }).filter(function (x) { return x && !x.isCity; });
+    const mustCityNames = mustLocs.map(function (x) { return x.city; });
+
+    // 同城:起终点在同一个城市 → 给出市内点对点 / 一日动线
+    if (A.n === B.n) {
+      if (a.label === b.label) {
+        return { from: a, to: b, distance: 0, routes: [], note: '起点和终点是同一个地点(' + a.label + '),换个目的地试试吧。', ctx: ctx };
+      }
+      if (!mustLocs.length) {
+        const leg = decideLocalLeg(a, b, ctx);
+        const picked = leg.options[0];
+        const ickm = Math.round(intraCityKm(a, b));
+        const route = {
+          id: 'local', title: '同城点对点 · ' + ickm + ' km',
+          desc: '起终点都在' + A.n + ',这里给的是市内从「' + (a.place || '市区') + '」到「' + (b.place || '市区') + '」怎么走最合适',
+          color: COLORS[0], family: 'local',
+          fromLabel: a.label, toLabel: b.label,
+          nodes: [toNode(a, false), toNode(b, false)],
+          chain: [], stops: [], segments: [leg],
+          cost: picked.cost, minutes: picked.minutes, km: picked.dist, transfers: 0,
+          geoKm: ickm, directKm: ickm, ratio: 1,
+          score: 0, stayDays: 0
+        };
+        return {
+          from: a, to: b, distance: ickm, routes: [route],
+          note: '起终点同城,按市内交通给出方案;市内里程按两地「距市中心距离」估算。', ctx: ctx
+        };
+      }
+      const chain = mustLocs.map(function (l) {
+        return { c: l.c, place: l.c.places.filter(function (p) { return p.n === l.place; })[0], forced: true, t: 0.5, add: 0 };
+      });
+      const route = buildRoute(a, b, chain, ctx, { id: 'city', title: '同城一日动线 · ' + chain.length + ' 站', desc: '起终点都在' + A.n + ',已按你勾选的景点排出市内动线', color: COLORS[0], family: 'city' });
+      return { from: a, to: b, distance: 0, routes: [route], note: '起终点同城,已按必去景点串联。', ctx: ctx };
+    }
+
+    const pool = findCandidates(A, B, D, prefs, mustCityNames);
+    const anchors = mustLocs.map(function (l) {
+      const m = axisMetrics(A, B, l.c);
+      const sameEnd = A.n === l.city ? 0.02 : (B.n === l.city ? 0.98 : m.t);
+      return {
+        c: l.c, place: l.c.places.filter(function (p) { return p.n === l.place; })[0], forced: true,
+        t: sameEnd, add: haversine(A, l.c) + haversine(l.c, B) - D
+      };
+    }).sort(function (x, y) { return x.t - y.t; });
+
+    const kClassic = D < 600 ? 1 : (D < 1600 ? 2 : 3);
+    const kDeep = D < 600 ? 2 : (D < 1600 ? 3 : 4);
+    const top = pool.slice(0, 18);
+    const maxExtraBase = Math.max(D * 0.5, 420);
+
+    function estimate(nodes) {
+      let cost = 0, minutes = 0, transfers = 0;
+      for (let i = 0; i < nodes.length - 1; i++) {
+        const leg = decideLeg(nodes[i], nodes[i + 1], ctx);
+        const o = leg.options[0];
+        cost += o.cost; minutes += o.minutes; transfers += o.transfers;
+      }
+      return { cost: cost, minutes: minutes, transfers: transfers };
+    }
+    function chainToNodes(part) {
+      return [a].concat(part.map(function (x) { return x.place ? spotLocation(x.c, x.place) : cityLevelLocation(x.c); })).concat([b]);
+    }
+
+    function pickBest(k, objective) {
+      const avail = Math.max(0, k - anchors.length);
+      if (avail <= 0) return anchors;
+      const src = top.slice(0, k >= 3 ? 13 : 17);
+      const combos = combinations(src, avail);
+      let best = null, bestVal = -Infinity;
+      combos.forEach(function (combo) {
+        const merged = anchors.concat(combo.map(function (x) { return { c: x.c, place: null, forced: false, t: x.t, add: x.add }; }))
+          .sort(function (x, y) { return x.t - y.t; });
+        const nodes = chainToNodes(merged);
+        const geo = geoLength(nodes), ratio = geo / D;
+        if (objective.maxRatio && ratio > objective.maxRatio) return;
+        if (objective.maxExtra && geo - D > objective.maxExtra) return;
+        const est = estimate(nodes);
+        const val = objective.score(merged, ratio, est.cost, est.minutes, { transfers: est.transfers });
+        if (val > bestVal) { bestVal = val; best = merged; }
+      });
+      if (best) return best;
+      return anchors.concat(top.slice(0, avail).map(function (x) { return { c: x.c, place: null, forced: false, t: x.t, add: x.add }; }));
+    }
+
+    const scoreSum = function (arr) { return arr.reduce(function (s, x) { return s + x.c.s; }, 0); };
+    const routes = [];
+
+    // ① 直达 / 只走必去点
+    routes.push(buildRoute(a, b, anchors, ctx, {
+      id: 'direct',
+      title: anchors.length ? '只走必去点 · ' + anchors.length + ' 站' : '极速直达',
+      desc: anchors.length ? '只停你勾选的必去景点,不再加别的城市,路上最省时间' : '途中不停留,按你的偏好选最快的一套交通方案',
+      color: COLORS[0], family: 'direct'
+    }));
+
+    // ② 顺路精选
+    const cClassic = pickBest(Math.max(kClassic, anchors.length + 1), {
+      maxRatio: Math.min(prefs.maxRatio, 1.32), maxExtra: maxExtraBase,
+      score: function (arr, ratio) { return scoreSum(arr) - 190 * (ratio - 1); }
+    });
+    if (cClassic.length > anchors.length) routes.push(buildRoute(a, b, cClassic, ctx, {
+      id: 'classic', title: '顺路精选 · ' + (cClassic.length - anchors.length) + ' 城顺路',
+      desc: '偏离直线不到三成,顺路加停口碑最好的城市', color: COLORS[1], family: 'classic'
+    }));
+
+    // ③ 全程高铁/动车
+    const cHsr = pickBest(Math.max(kClassic + 1, anchors.length + 1), {
+      maxRatio: Math.min(prefs.maxRatio + 0.08, 1.45), maxExtra: maxExtraBase * 1.1,
+      score: function (arr, ratio, cost, time, info) { return scoreSum(arr) * 0.5 - time / 60 * 6 - ratio * 25 - info.transfers * 40; }
+    });
+    if (cHsr.length > anchors.length) routes.push(buildRoute(a, b, cHsr, ctx, {
+      id: 'hsr', title: '全程高铁 · ' + (cHsr.length - anchors.length) + ' 城顺路',
+      desc: '城市之间尽量用高铁/动车衔接,班次密、准点率高', color: COLORS[3], family: 'hsr', railOnly: true
+    }));
+
+    // ④ 深度环游
+    const cDeep = pickBest(Math.max(kDeep, anchors.length + 1), {
+      maxRatio: Math.min(prefs.maxRatio + 0.3, 1.8), maxExtra: Math.max(D * 0.95, 800),
+      score: function (arr, ratio, cost) { return scoreSum(arr) * 0.75 - cost / 100 * 3 - ratio * 12; }
+    });
+    if (cDeep.length > cClassic.length) routes.push(buildRoute(a, b, cDeep, ctx, {
+      id: 'deep', title: '深度环游 · ' + (cDeep.length - anchors.length) + ' 城顺路',
+      desc: '多停几站慢慢玩,交通按省心省钱的思路安排', color: COLORS[4], family: 'deep'
+    }));
+
+    // ⑤ 最经济:门到门总价最低的多城组合
+    const cEco = pickBest(Math.max(2, anchors.length + 1), {
+      maxRatio: Math.min(prefs.maxRatio, 1.35), maxExtra: Math.max(D * 0.35, 300),
+      score: function (arr, ratio, cost) { return -cost - ratio * 3 + arr.length * 2; }
+    });
+    const ecoChain = cEco.length ? cEco : cClassic;
+    if (ecoChain.length > anchors.length) routes.push(buildRoute(a, b, ecoChain, ctx, {
+      id: 'eco', title: '最经济之选 · ' + (ecoChain.length - anchors.length) + ' 城顺路',
+      desc: '门到门总花费最低的一套组合(已含接驳与换乘)', color: '#b45309', family: 'eco'
+    }));
+
+    const seen = {}, uniq = [];
+    routes.forEach(function (r) {
+      const sig = r.chain.map(function (x) { return x.c.n + (x.place ? '·' + x.place.n : ''); }).join('>') + '|' +
+        r.segments.map(function (s) { return s.chosen; }).join('>');
+      if (seen[sig]) return;
+      seen[sig] = 1; uniq.push(r);
+    });
+    const chainSeen = {};
+    uniq.forEach(function (r) {
+      const cs = r.chain.map(function (x) { return x.c.n + (x.place ? '·' + x.place.n : ''); }).join('>') || '∅';
+      if (chainSeen[cs]) r.sameChainAs = chainSeen[cs]; else chainSeen[cs] = r.title;
+    });
+    uniq.forEach(function (r, i) { r.color = COLORS[i % COLORS.length]; });
+    uniq.sort(function (x, y) { return x.cost - y.cost; });
+    uniq.forEach(recompute);
+
+    const placeCount = CITIES.reduce(function (s, c) { return s + c.places.length; }, 0);
+    const note = '已收录 ' + CITIES.length + ' 座城市、' + placeCount + ' 个精确地点/景点;' +
+      '费用与耗时均为门到门(含接驳),起终点之间找到 ' + pool.length + ' 座顺路城市,绕行上限 ' + prefs.maxRatio.toFixed(2) + '。' +
+      (mustLocs.length ? ' 已强制途经:' + mustLocs.map(function (l) { return l.label; }).join('、') + '。' : '');
+    return { from: a, to: b, distance: Math.round(haversine(A, B)), routes: uniq, poolSize: pool.length, note: note, ctx: ctx };
+  }
+
+  /* ---------------------------------------------------------
+   * 11. 排序与称号
+   * --------------------------------------------------------- */
+  function rank(routes) {
+    const list = routes.slice();
+    if (!list.length) return { routes: list, championId: null, titles: {} };
+    const titles = {};
+    const cheap = list.slice().sort(function (x, y) { return x.cost - y.cost || y.chain.length - x.chain.length; });
+    const multi = cheap.filter(function (r) { return r.chain.length >= 1; });
+    const champion = multi.length ? multi[0] : cheap[0];
+    titles[champion.id] = '🏆';
+
+    const fast = list.slice().sort(function (x, y) { return x.minutes - y.minutes; })[0];
+    titles[fast.id] = (titles[fast.id] || '') + '⚡';
+    const smooth = list.slice().sort(function (x, y) { return (x.transfers - y.transfers) || (x.minutes - y.minutes); })[0];
+    titles[smooth.id] = (titles[smooth.id] || '') + '🔁';
+    const many = list.slice().sort(function (x, y) { return (y.chain.length - x.chain.length) || (y.score - x.score); })[0];
+    titles[many.id] = (titles[many.id] || '') + '🎒';
+
+    const rival = cheap.filter(function (r) { return r.id !== champion.id && r.chain.length >= 1; })[0] ||
+      cheap.filter(function (r) { return r.id !== champion.id; })[0];
+    // 「全程不停靠」的直达方案有可能比最经济之选还便宜。
+    // 这不算错(最经济是「多玩几座城」里最省的),但不告诉用户就容易让人误以为选贵了。
+    const cheaperDirect = list.filter(function (r) {
+      return r.id !== champion.id && r.chain.length === 0 && r.cost < champion.cost;
+    }).sort(function (x, y) { return x.cost - y.cost; })[0] || null;
+
+    return {
+      routes: list, championId: champion.id, titles: titles,
+      championSave: rival ? Math.max(0, rival.cost - champion.cost) : 0,
+      rivalId: rival ? rival.id : null,
+      budgetId: cheaperDirect ? cheaperDirect.id : null,
+      budgetSave: cheaperDirect ? champion.cost - cheaperDirect.cost : 0,
+      fastestId: fast.id, smoothestId: smooth.id, mostCitiesId: many.id
+    };
+  }
+
+  return {
+    CITIES: CITIES, BY_NAME: BY_NAME, MODES: MODES, INTERESTS: INTERESTS,
+    AREA_TYPES: AREA_TYPES, RELAY_ASSUME: RELAY_ASSUME, RULE_TEXT: RULE_TEXT,
+    haversine: haversine, parsePlace: parsePlace,
+    cityLevelLocation: cityLevelLocation, locationFromUnknown: locationFromUnknown,
+    buildOptions: buildOptions, decideLeg: decideLeg, relayLeg: relayLeg,
+    decideLocalLeg: decideLocalLeg, buildLocalOptions: buildLocalOptions,
+    plan: plan, recompute: recompute, rank: rank, fmtDuration: fmtDuration, axisMetrics: axisMetrics
+  };
+});
+
+
+</script>
+<script>
+(function () {
+  'use strict';
+  var state = {
+    result: null, selectedId: null, interests: [], maxRatio: 1.4,
+    preference: 'balanced', departHour: '', tags: [], spots: [], areaKinds: { from: 'area', to: 'area' }
+  };
+  var $ = function (id) { return document.getElementById(id); };
+  var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
+  var money = function (n) { return '¥' + Math.round(n).toLocaleString('zh-CN'); };
+  var dur = function (m) { return TRP.fmtDuration(m); };
+  var durShort = function (m) { var h = Math.floor(m / 60), mm = m % 60; return h > 0 ? h + 'h' + (mm ? mm + 'm' : '') : mm + 'm'; };
+
+  /* ---------- 可选景点库(排除居住区/商圈/乡镇) ---------- */
+  var SPOTS = [];
+  TRP.CITIES.forEach(function (c) {
+    c.places.forEach(function (p) {
+      var kind = (TRP.AREA_TYPES[p.type] || {}).kind;
+      if (kind === 'area' || kind === 'county' || kind === 'hub') return;
+      SPOTS.push({ key: c.n + '·' + p.n, city: c.n, name: p.n, type: p.type, km: p.km, score: c.s, tip: p.note });
+    });
+  });
+
+  /* ---------- 输入联想 ---------- */
+  var dl = $('placeList');
+  var seen = {};
+  TRP.CITIES.slice().sort(function (a, b) { return b.s - a.s; }).forEach(function (c) {
+    [c.n].concat(c.places.map(function (p) { return c.n + '·' + p.n; })).forEach(function (v) {
+      if (seen[v]) return; seen[v] = 1;
+      var o = document.createElement('option'); o.value = v;
+      var hit = c.places.filter(function (p) { return c.n + '·' + p.n === v; })[0];
+      o.label = hit ? (hit.type + ' · ' + c.n) : ('城市 · 推荐度 ' + c.s);
+      dl.appendChild(o);
+    });
+  });
+
+  /* ---------- 控件绑定 ---------- */
+  var ic = $('interestChips');
+  TRP.INTERESTS.forEach(function (it) {
+    var b = document.createElement('button');
+    b.className = 'chip'; b.textContent = it.label; b.dataset.key = it.key;
+    b.onclick = function () {
+      var i = state.interests.indexOf(it.key);
+      if (i >= 0) { state.interests.splice(i, 1); b.classList.remove('on'); }
+      else { state.interests.push(it.key); b.classList.add('on'); }
+      generate();
+    };
+    ic.appendChild(b);
+  });
+  document.querySelectorAll('#ratioChips .chip').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('#ratioChips .chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); state.maxRatio = parseFloat(b.dataset.ratio); generate();
+    };
+  });
+  document.querySelectorAll('#prefChips .chip').forEach(function (b) {
+    b.onclick = function () {
+      document.querySelectorAll('#prefChips .chip').forEach(function (x) { x.classList.remove('on'); });
+      b.classList.add('on'); state.preference = b.dataset.pref; generate();
+    };
+  });
+  document.querySelectorAll('#tagChips .chip').forEach(function (b) {
+    b.onclick = function () {
+      var t = b.dataset.tag, i = state.tags.indexOf(t);
+      if (i >= 0) { state.tags.splice(i, 1); b.classList.remove('on'); }
+      else { state.tags.push(t); b.classList.add('on'); }
+      generate();
+    };
+  });
+  $('departHour').onchange = function () { state.departHour = this.value; generate(); };
+  ['from', 'to'].forEach(function (id) {
+    $(id).addEventListener('keydown', function (e) { if (e.key === 'Enter') generate(); });
+    $(id).addEventListener('change', function () { generate(); });
+  });
+  $('spotSearch').oninput = function () { renderSpotList(this.value); };
+  $('goBtn').onclick = generate;
+  $('swapBtn').onclick = function () {
+    var a = $('from').value; $('from').value = $('to').value; $('to').value = a; generate();
+  };
+  $('copyBtn').onclick = copyPlan;
+
+  function toast(msg) {
+    var t = $('toast'); t.textContent = msg; t.classList.add('on');
+    clearTimeout(toast._t); toast._t = setTimeout(function () { t.classList.remove('on'); }, 2200);
+  }
+  function tagList() {
+    return state.interests.reduce(function (acc, k) {
+      var it = TRP.INTERESTS.filter(function (x) { return x.key === k; })[0];
+      return acc.concat(it ? it.tags : []);
+    }, []);
+  }
+
+  /* ---------- 地点解析卡片 ---------- */
+  function resolveField(id) { return TRP.parsePlace($(id).value.trim(), state.areaKinds[id]); }
+  function renderLocCards() {
+    ['from', 'to'].forEach(function (id) {
+      var loc = resolveField(id), box = $(id + 'Info');
+      if (!loc) {
+        box.innerHTML = '<span class="warn">没认出这个地方,试试写成「城市·小区」,比如「杭州·滨江」</span>';
+        return;
+      }
+      var kindLabel = (TRP.AREA_TYPES[loc.type] || {}).label || loc.type;
+      var html = '<b>' + esc(loc.label) + '</b> · ' + esc(kindLabel) +
+        '<br>到火车站约 ' + Math.round(loc.hubKm) + ' km,到客运站约 ' + Math.round(loc.busKm) + ' km';
+      if (loc.assumed) {
+        html += '<br><span class="warn">这个具体地址还没收录,已按下方的位置类型估算接驳</span>' +
+          '<div class="area-btns">' + [['core', '市中心'], ['area', '城区/小区'], ['suburb', '近郊新区'], ['county', '县城乡镇'], ['scenic', '景区']].map(function (a) {
+            return '<button data-area="' + a[0] + '" data-field="' + id + '" class="' + (state.areaKinds[id] === a[0] ? 'on' : '') + '">' + a[1] + '</button>';
+          }).join('') + '</div>';
+      }
+      box.innerHTML = html;
+    });
+    document.querySelectorAll('.area-btns button').forEach(function (b) {
+      b.onclick = function () {
+        state.areaKinds[b.dataset.field] = b.dataset.area;
+        generate();
+      };
+    });
+  }
+
+  /* ---------- 景点选择 ---------- */
+  function renderSpotList(kw) {
+    kw = (kw || '').trim();
+    var list = SPOTS.slice().sort(function (a, b) { return b.score - a.score; });
+    if (kw) list = list.filter(function (s) { return s.name.indexOf(kw) >= 0 || s.city.indexOf(kw) >= 0; });
+    var groups = {};
+    list.slice(0, 200).forEach(function (s) { (groups[s.city] = groups[s.city] || []).push(s); });
+    var cities = Object.keys(groups).sort(function (a, b) {
+      return (TRP.BY_NAME[b] ? TRP.BY_NAME[b].s : 0) - (TRP.BY_NAME[a] ? TRP.BY_NAME[a].s : 0);
+    });
+    var html = '';
+    if (!cities.length) html = '<div style="padding:8px;color:var(--ink-3);font-size:12px">没搜到,换个关键词试试</div>';
+    cities.forEach(function (city) {
+      html += '<div class="spot-group">' + esc(city) + '</div>';
+      groups[city].forEach(function (s) {
+        html += '<button class="spot-item' + (state.spots.indexOf(s.key) >= 0 ? ' on' : '') + '" data-key="' + esc(s.key) + '" title="' + esc(s.tip) + '">' + esc(s.name) + '</button>';
+      });
+    });
+    $('spotList').innerHTML = html;
+    document.querySelectorAll('.spot-item').forEach(function (b) {
+      b.onclick = function () {
+        var k = b.dataset.key, i = state.spots.indexOf(k);
+        if (i >= 0) state.spots.splice(i, 1); else state.spots.push(k);
+        renderPicked(); renderSpotList($('spotSearch').value); generate();
+      };
+    });
+  }
+  function renderPicked() {
+    if (!state.spots.length) {
+      $('pickedSpots').innerHTML = '<span style="color:var(--ink-3);font-size:11.5px">还没有选择景点</span>';
+      return;
+    }
+    $('pickedSpots').innerHTML = state.spots.map(function (k) {
+      return '<span class="pk" data-key="' + esc(k) + '">' + esc(k) + ' ✕</span>';
+    }).join('');
+    document.querySelectorAll('#pickedSpots .pk').forEach(function (b) {
+      b.onclick = function () {
+        var i = state.spots.indexOf(b.dataset.key);
+        if (i >= 0) state.spots.splice(i, 1);
+        renderPicked(); renderSpotList($('spotSearch').value); generate();
+      };
+    });
+  }
+
+  /* ---------- 规划 ---------- */
+  function generate() {
+    var fl = resolveField('from'), tl = resolveField('to');
+    renderLocCards();
+    if (!fl) { toast('没认出发地:' + $('from').value); return; }
+    if (!tl) { toast('没认目的地:' + $('to').value); return; }
+    state.result = TRP.plan({
+      fromLoc: fl, toLoc: tl,
+      mustVisit: state.spots,
+      preference: state.preference,
+      departHour: state.departHour,
+      dateTags: state.tags.filter(function (t) { return ['节假日', '春运', '黄金周'].indexOf(t) >= 0; }),
+      userTags: state.tags,
+      maxRatio: state.maxRatio,
+      interestTags: tagList()
+    });
+    var rk = TRP.rank(state.result.routes);
+    state.selectedId = rk.championId || (state.result.routes[0] && state.result.routes[0].id) || null;
+    render();
+  }
+  function rankOf() { return TRP.rank(state.result.routes); }
+  function displayRoutes() {
+    var rk = rankOf();
+    var list = state.result.routes.slice();
+    list.sort(function (a, b) {
+      if (a.id === rk.championId) return -1;
+      if (b.id === rk.championId) return 1;
+      return a.cost - b.cost;
+    });
+    return { list: list, rk: rk };
+  }
+
+  /* ---------- 渲染 ---------- */
+  function render() {
+    var d = state.result;
+    if (!d) return;
+    $('routeTitle').innerHTML = esc(d.from.label) + ' <span class="arrow">→</span> ' + esc(d.to.label);
+    $('routeNote').textContent = (d.distance ? '直线 ' + d.distance + ' km · ' : '') + (d.note || '');
+    var dr = displayRoutes();
+    $('listHint').textContent = d.routes.length
+      ? ('共 ' + dr.list.length + ' 条 · 全部按门到门计算(含接驳/候车/换乘)· 每段都能换交通方式,总价实时重算')
+      : '这条线上暂时没有可顺路加停的城市';
+    renderCards(dr);
+    renderChart(dr);
+    renderMap(dr);
+    renderLegend(dr);
+  }
+
+  function badges(r, rk) {
+    var out = [];
+    if (r.id === rk.championId) out.push('<span class="badge gold">🏆 最经济</span>');
+    if (r.id === rk.fastestId) out.push('<span class="badge">⚡ 门到门最快</span>');
+    if (r.id === rk.smoothestId) out.push('<span class="badge green">🔁 换乘最少</span>');
+    if (r.id === rk.mostCitiesId && r.chain.length >= 2) out.push('<span class="badge">🎒 停靠最多</span>');
+    if (r.id === rk.budgetId) out.push('<span class="badge money">💸 比「最经济之选」再省 ' + money(rk.budgetSave) + '(代价是不停靠任何城市)</span>');
+    if (r.sameChainAs) out.push('<span class="badge gray">与「' + esc(r.sameChainAs) + '」同城市,只有交通方式不同</span>');
+    return out.join('');
+  }
+
+  function legHTML(route, i) {
+    var s = route.segments[i];
+    var o = s.options.filter(function (x) { return x.mode === s.chosen; })[0] || s.options[0];
+    var minCost = Math.min.apply(null, s.options.map(function (x) { return x.cost; }));
+    var rules = (s.rules && s.rules.length)
+      ? '<div class="rules">' + s.rules.map(function (x) { return '<span class="rule-tag">' + esc(x.text) + '</span>'; }).join('') + '</div>' : '';
+
+    var pieces = [];
+    pieces.push('<span class="piece"><i>接驳</i>' + esc(o.relayA.mode) + ' ' + durShort(o.relayA.minutes) + (o.relayA.cost ? ' ¥' + o.relayA.cost : '') + '</span>');
+    if (o.wait) pieces.push('<span class="piece"><i>候车</i>' + o.wait + 'm</span>');
+    pieces.push('<span class="piece"><i>在途</i>' + o.icon + ' ' + durShort(o.intercityMinutes) + ' ¥' + o.intercityCost + '</span>');
+    if (o.relayB.minutes || o.relayB.cost) pieces.push('<span class="piece"><i>到站后</i>' + esc(o.relayB.mode) + ' ' + durShort(o.relayB.minutes) + (o.relayB.cost ? ' ¥' + o.relayB.cost : '') + '</span>');
+    if (o.transfers) pieces.push('<span class="piece"><i>换乘</i>' + (o.hub ? esc(o.hub) + ' ' : '') + '一次</span>');
+    pieces.push('<span class="piece sum"><i>门到门</i>' + durShort(o.minutes) + ' · ¥' + o.cost + '</span>');
+
+    var alts = s.options.map(function (x) {
+      return '<button class="mode' + (x.mode === s.chosen ? ' sel' : '') + (x.cost === minCost ? ' cheap' : '') +
+        '" data-route="' + route.id + '" data-seg="' + i + '" data-mode="' + x.mode + '" title="' + esc(x.reason) + '">' +
+        x.icon + ' ' + esc(x.label) + ' <b>¥' + x.cost + '</b> <i>' + durShort(x.minutes) + '</i></button>';
+    }).join('');
+
+    return '<div class="seg">' +
+      '<div class="seg-head"><span class="name">' + esc(s.from.label) + ' → ' + esc(s.to.label) + '</span>' +
+        '<span class="km">' + s.straight + ' km' + (s.local ? ' · 市内' : '') + '</span></div>' +
+      rules +
+      '<div class="pick">' +
+        '<div class="pick-main"><span class="tag">推荐</span>' +
+          '<span class="mode-name">' + o.icon + ' ' + esc(o.label) + '</span>' +
+          '<span class="price">' + money(o.cost) + '</span>' +
+          '<span class="time">门到门 ' + dur(o.minutes) + (o.transfers ? ' · 需在' + esc(o.hub || '中途') + '换乘一次' : ' · 直达不换乘') + '</span>' +
+        '</div>' +
+        '<div class="reason">' + esc(o.reason) + '</div>' +
+        '<div class="d2d">' + pieces.join('<span class="arrow">→</span>') + '</div>' +
+        '<div class="tickets">🎫 ' + esc(o.tickets) + '</div>' +
+      '</div>' +
+      '<div class="alts">' + alts + '</div>' +
+    '</div>';
+  }
+
+  function renderCards(dr) {
+    if (!dr.list.length) {
+      $('cards').innerHTML = '<div class="empty">' + esc(state.result.note || '没有可用方案') + '</div>';
+      return;
+    }
+    var rk = dr.rk, html = '';
+    dr.list.forEach(function (r) {
+      var champ = r.id === rk.championId;
+      var body = '';
+      for (var i = 0; i < r.nodes.length; i++) {
+        var n = r.nodes[i];
+        var isStart = i === 0, isEnd = i === r.nodes.length - 1;
+        var cls = isStart ? '' : (isEnd ? 'end' : 'stop');
+        var label = isStart ? '起' : (isEnd ? '终' : String(i));
+        body += '<div class="node">' +
+          '<span class="pin ' + cls + '">' + label + '</span>' +
+          '<div class="info">' +
+            '<div class="name">' + esc(n.label) + '<em>' + esc(n.type || '') + (n.isStop ? ' · 顺路停靠' : '') + '</em></div>' +
+            '<div class="spots">📍 ' + esc(n.spots) + '</div>' +
+          '</div>' +
+          (n.isStop ? '<span class="sc">推荐度 ' + n.s + '</span>' : '') +
+        '</div>';
+        if (i < r.segments.length) body += legHTML(r, i);
+      }
+      var saving = champ
+        ? '<div class="saving">💰 ' + (rk.championSave > 0
+          ? '多城方案里门到门总价最低,比次优再省 ' + money(rk.championSave)
+          : '多城方案里门到门总价最低') + '</div>' : '';
+      html += '<section class="card' + (champ ? ' champ' : '') + (r.id === state.selectedId ? ' sel' : '') + '" data-id="' + r.id + '">' +
+        (champ ? '<div class="ribbon">最经济之选</div>' : '') +
+        '<header class="card-head" data-select="' + r.id + '">' +
+          '<div class="row1"><span class="dot" style="background:' + r.color + '"></span><h3>' + esc(r.title) + '</h3>' +
+            '<span class="badges">' + badges(r, rk) + '</span></div>' +
+          '<p class="desc">' + esc(r.desc) + '</p>' +
+          '<div class="metrics">' +
+            '<div class="m"><b>' + money(r.cost) + '</b><span>门到门费用合计</span></div>' +
+            '<div class="m"><b>' + durShort(r.minutes) + '</b><span>门到门总耗时</span></div>' +
+            '<div class="m"><b>' + (r.transfers ? r.transfers + ' 次' : '直达') + '</b><span>需要换乘</span></div>' +
+            '<div class="m"><b>' + r.km + ' km</b><span>行程里程</span></div>' +
+            '<div class="m"><b>' + (r.ratio || 1).toFixed(2) + '</b><span>绕行系数</span></div>' +
+            '<div class="m"><b>' + (r.stayDays || 0) + ' 天</b><span>建议游玩</span></div>' +
+          '</div>' + saving +
+        '</header>' +
+        '<div class="timeline">' + body + '</div>' +
+        '<footer class="card-foot">' +
+          '<span>顺路停靠 <b>' + r.chain.length + '</b> 个点</span>' +
+          '<span>全程 <b>' + r.nodes.length + '</b> 站</span>' +
+          '<span>门到门合计 <b>' + money(r.cost) + '</b> / ' + dur(r.minutes) + '</span>' +
+        '</footer>' +
+      '</section>';
+    });
+    $('cards').innerHTML = html;
+
+    document.querySelectorAll('#cards .mode').forEach(function (b) {
+      b.onclick = function (e) {
+        e.stopPropagation();
+        var rid = b.dataset.route, si = parseInt(b.dataset.seg, 10), mode = b.dataset.mode;
+        var r = state.result.routes.filter(function (x) { return x.id === rid; })[0];
+        if (!r || !r.segments[si] || r.segments[si].chosen === mode) return;
+        r.segments[si].chosen = mode;
+        TRP.recompute(r);
+        var cur = r.segments[si].options.filter(function (x) { return x.mode === mode; })[0];
+        render();
+        toast('已换成 ' + cur.label + ',这条方案门到门 ' + money(r.cost) + ' / ' + dur(r.minutes));
+      };
+    });
+    document.querySelectorAll('#cards .card-head').forEach(function (h) {
+      h.onclick = function () { state.selectedId = h.dataset.select; render(); };
+    });
+  }
+
+  function renderChart(dr) {
+    var max = Math.max.apply(null, dr.list.map(function (r) { return r.cost; })) || 1;
+    var head = '<div class="head"><div>方案</div><div>门到门费用</div><div>费用</div><div>时间</div><div>换乘</div></div>';
+    var rows = dr.list.map(function (r) {
+      var champ = r.id === dr.rk.championId;
+      return '<div class="chart-row">' +
+        '<div class="lbl' + (champ ? ' is-champ' : '') + '">' + (champ ? '🏆 ' : '') + esc(r.title) + '</div>' +
+        '<div class="track"><div class="bar' + (champ ? ' gold' : '') + '" style="width:' + Math.max(4, r.cost / max * 100).toFixed(1) + '%"></div></div>' +
+        '<div class="val' + (champ ? ' gold' : '') + '">' + money(r.cost) + '</div>' +
+        '<div class="tm">' + durShort(r.minutes) + '</div>' +
+        '<div class="tf">' + (r.transfers ? r.transfers + ' 次' : '直达') + '</div>' +
+      '</div>';
+    }).join('');
+    var foot = '';
+    var direct = dr.list.filter(function (r) { return r.family === 'direct'; })[0];
+    if (direct && direct.segments.length === 1) {
+      var minO = direct.segments[0].options.reduce(function (a, b) { return b.cost < a.cost ? b : a; });
+      foot = '<div class="chart-foot">参考:如果完全不停留,「' + esc(direct.fromLabel) + ' → ' + esc(direct.toLabel) +
+        '」最省的方式是 ' + minO.icon + esc(minO.label) + ' 约 ' + money(minO.cost) + '(门到门 ' + dur(minO.minutes) +
+        ');上面各条比它多出来的部分,就是顺路多玩几座城市的代价。</div>';
+    }
+    $('chart').innerHTML = head + rows + foot;
+  }
+
+  function renderLegend(dr) {
+    var parts = dr.list.map(function (r) { return '<span><i style="background:' + r.color + '"></i>' + esc(r.title) + '</span>'; });
+    parts.push('<span><i style="background:#f0c986"></i>浅金色 = 该段最便宜</span>');
+    parts.push('<span><i style="background:#10192a"></i>深色 = 当前已选</span>');
+    $('mapLegend').innerHTML = parts.join('');
+  }
+
+  /* ---------- 地图 ---------- */
+  var map = null, mapReady = false, mapAlive = false, mapLayers = {};
+  function initMap() {
+    if (mapReady) return;
+    if (window.__tmapFailed || typeof TMap === 'undefined') return showFallback();
+    try {
+      map = new TMap.Map('map', { center: new TMap.LatLng(34.5, 108.5), zoom: 5, pitch: 0, viewMode: '2D' });
+      mapLayers.lineAll = new TMap.MultiPolyline({ map: map, styles: {}, geometries: [] });
+      mapLayers.marker = new TMap.MultiMarker({ map: map, styles: {
+        start: new TMap.MarkerStyle({ width: 24, height: 32, anchor: { x: 12, y: 32 }, color: '#2f6fed' }),
+        end: new TMap.MarkerStyle({ width: 24, height: 32, anchor: { x: 12, y: 32 }, color: '#dc2626' }),
+        stop: new TMap.MarkerStyle({ width: 22, height: 30, anchor: { x: 11, y: 30 }, color: '#f59e0b' })
+      }, geometries: [] });
+      try {
+        mapLayers.label = new TMap.MultiLabel({ map: map, styles: {
+          city: new TMap.LabelStyle({ color: '#16202e', size: 12, offset: { x: 0, y: -34 }, alignment: 'center', backgroundColor: '#ffffff', backgroundPadding: 3, borderColor: '#e3e8f0', borderWidth: 1 })
+        }, geometries: [] });
+      } catch (e) { mapLayers.label = null; }
+      // 底图真的画出来了才算可用:只创建对象成功但拉不到瓦片(没授权)时会是一张空白图
+      try {
+        map.on('idle', function () { mapAlive = true; });
+        if (typeof map.on === 'function') map.on('tilesloaded', function () { mapAlive = true; });
+      } catch (e) {}
+      mapReady = true;
+      $('map').style.display = 'block';
+      $('axisFallback').classList.remove('on');
+      $('mapLegend').style.display = '';
+      return true;
+    } catch (e) { mapReady = false; showFallback('地图初始化失败:' + e.message); return false; }
+  }
+  function showFallback(msg) {
+    var m = $('map'); if (m) m.style.display = 'none';
+    $('axisFallback').classList.add('on');
+    var lg = $('mapLegend'); if (lg) lg.style.display = 'none';
+    if (msg) console.warn('[map]', msg);
+  }
+  function fitView(nodes) {
+    if (!mapReady) return;
+    var lats = nodes.map(function (n) { return n.lat; }), lngs = nodes.map(function (n) { return n.lng; });
+    var minLat = Math.min.apply(null, lats), maxLat = Math.max.apply(null, lats);
+    var minLng = Math.min.apply(null, lngs), maxLng = Math.max.apply(null, lngs);
+    var span = Math.max(maxLat - minLat, (maxLng - minLng) * 0.85);
+    var zoom = span > 30 ? 4 : span > 20 ? 5 : span > 12 ? 5 : span > 8 ? 6 : span > 4 ? 7 : span > 2 ? 8 : span > 0.8 ? 9 : 11;
+    map.setCenter(new TMap.LatLng((minLat + maxLat) / 2, (minLng + maxLng) / 2));
+    map.setZoom(zoom);
+  }
+  function renderMap(dr) {
+    if (!mapReady) { renderAxis(dr); return; }
+    var styles = {}, geoms = [], selId = state.selectedId;
+    dr.list.forEach(function (r) {
+      styles['s_' + r.id] = new TMap.PolylineStyle({
+        color: r.id === selId ? r.color : 'rgba(120,140,170,0.4)',
+        width: r.id === selId ? 6 : 2,
+        borderWidth: r.id === selId ? 2 : 0, borderColor: '#ffffff', lineCap: 'round'
+      });
+      geoms.push({ id: r.id, styleId: 's_' + r.id, paths: r.nodes.map(function (n) { return new TMap.LatLng(n.lat, n.lng); }) });
+    });
+    mapLayers.lineAll.setStyles(styles);
+    mapLayers.lineAll.setGeometries(geoms);
+    var sel = dr.list.filter(function (r) { return r.id === selId; })[0] || dr.list[0];
+    if (!sel) return;
+    mapLayers.marker.setGeometries(sel.nodes.map(function (n, i) {
+      return { id: sel.id + '_' + i, position: new TMap.LatLng(n.lat, n.lng), styleId: i === 0 ? 'start' : (i === sel.nodes.length - 1 ? 'end' : 'stop') };
+    }));
+    if (mapLayers.label) {
+      mapLayers.label.setGeometries(sel.nodes.map(function (n, i) {
+        return { id: sel.id + '_L' + i, styleId: 'city', position: new TMap.LatLng(n.lat, n.lng), content: n.label };
+      }));
+    }
+    fitView(sel.nodes);
+  }
+
+  function renderAxis(dr) {
+    if (mapReady) return;
+    var svg = $('axisSvg'), list = dr.list.slice(0, 5);
+    var W = 660, padL = 112, padR = 40, laneH = 44, top = 22;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + (top + list.length * laneH + 14));
+    var out = '';
+    list.forEach(function (r, li) {
+      var y = top + li * laneH + 16;
+      var cum = [0], total = 0;
+      for (var i = 0; i < r.nodes.length - 1; i++) { total += TRP.haversine(r.nodes[i], r.nodes[i + 1]); }
+      cum.push(total);
+      var x = function (v) { return padL + (W - padL - padR) * (total ? v / total : 0); };
+      // 同城路线所有节点坐标相同(total=0),按节点序号均分,避免全部叠在一起
+      var xOf = function (v, i) {
+        return total > 0.001 ? x(v) : padL + (W - padL - padR) * (i / Math.max(1, r.nodes.length - 1));
+      };
+      out += '<text x="6" y="' + (y - 4) + '" font-size="11.5" fill="' + (r.id === dr.rk.championId ? '#b45309' : '#47566b') + '">' + esc(r.title) + '</text>';
+      out += '<text x="6" y="' + (y + 11) + '" font-size="10.5" fill="#8593a8">' + money(r.cost) + ' · ' + durShort(r.minutes) + '</text>';
+      out += '<line x1="' + padL + '" y1="' + y + '" x2="' + xOf(total, r.nodes.length - 1) + '" y2="' + y + '" stroke="' + r.color + '" stroke-width="' + (r.id === dr.rk.championId ? 3 : 2) + '" stroke-linecap="round" opacity="' + (r.id === state.selectedId ? 1 : 0.55) + '"/>';
+      r.nodes.forEach(function (n, i) {
+        var cx = xOf(cum[i], i);
+        var kmLbl = total > 0.001 ? Math.round(cum[i]) + 'km' : (i === 0 ? '起点' : '终点');
+        out += '<circle cx="' + cx + '" cy="' + y + '" r="' + (i === 0 || i === r.nodes.length - 1 ? 5 : 4) + '" fill="#fff" stroke="' + r.color + '" stroke-width="2.5"/>';
+        out += '<text x="' + cx + '" y="' + (y - 11) + '" font-size="10.5" text-anchor="middle" fill="#16202e">' + esc(n.n) + '</text>';
+        out += '<text x="' + cx + '" y="' + (y + 20) + '" font-size="9.5" text-anchor="middle" fill="#8593a8">' + kmLbl + '</text>';
+      });
+    });
+    svg.innerHTML = out;
+  }
+
+  /* ---------- 复制行程 ---------- */
+  function copyPlan() {
+    if (!state.result || !state.result.routes.length) return;
+    var dr = displayRoutes(), d = state.result;
+    var lines = ['【' + d.from.label + ' → ' + d.to.label + ' 顺路旅行方案】直线 ' + d.distance + ' km', ''];
+    dr.list.forEach(function (r, idx) {
+      lines.push((idx + 1) + '. ' + r.title + (r.id === dr.rk.championId ? '(最经济)' : '') +
+        ' 门到门 ' + money(r.cost) + ' / ' + dur(r.minutes) + ' / 换乘 ' + r.transfers + ' 次 / 建议游玩 ' + (r.stayDays || 0) + ' 天');
+      r.segments.forEach(function (s) {
+        var o = s.options.filter(function (x) { return x.mode === s.chosen; })[0];
+        lines.push('    ' + s.from.label + ' → ' + s.to.label + ':' + o.label + ' ' + money(o.cost) + '(门到门 ' + dur(o.minutes) + ')');
+        lines.push('      理由:' + o.reason);
+        lines.push('      购票:' + o.tickets);
+        lines.push('      备选:' + s.options.map(function (x) { return x.label + money(x.cost) + '/' + dur(x.minutes); }).join('、'));
+      });
+      lines.push('');
+    });
+    lines.push('※ 均为门到门估算(含接驳与候车),实际以购票时为准');
+    var text = lines.join('\n');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { toast('行程已复制到剪贴板'); }, function () { fbCopy(text); });
+    } else fbCopy(text);
+  }
+  function fbCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); toast('行程已复制到剪贴板'); } catch (e) { toast('复制失败,请手动选择'); }
+    document.body.removeChild(ta);
+  }
+
+  /* ---------- 启动 ---------- */
+  renderSpotList('');
+  renderPicked();
+  initMap();
+  generate();
+  window.setTimeout(function () {
+    var redraw = function () { if (state.result) renderMap(displayRoutes()); };
+    if (!mapReady) {
+      if (typeof TMap !== 'undefined' && !window.__tmapFailed) {
+        if (initMap()) redraw(); else showFallback('地图初始化失败,已切换为里程示意图');
+      } else showFallback('未加载到地图 SDK,已切换为里程示意图');
+    } else if (!mapAlive) {
+      // 3 秒了底图还没画出来 → 别让用户看一张空白地图
+      mapReady = false;
+      showFallback('地图底图未响应(可能缺少访问授权),已切换为里程示意图');
+      redraw();
+    }
+  }, 3000);
+})();
+</script>
+</body>
+</html>
