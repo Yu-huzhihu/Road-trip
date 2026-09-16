@@ -3,7 +3,7 @@ const TRP = require('./engine.js');
 let fails = 0;
 function ok(cond, label) {
   if (!cond) fails++;
-  console.log((cond ? '  ✅ ' : '  ❌ ') + label);
+  console.log((cond ? '  [PASS] ' : '  [FAIL] ') + label);
 }
 
 console.log('\n=== 1. 地点解析 ===');
@@ -29,7 +29,7 @@ function leg(a, b, ctx) {
 
 console.log('\n=== 2. 六条决策规则 ===');
 let L = leg('北京·天通苑', '天津·五大道');
-console.log('  [短途+小区] 命中 ' + L.ruleIds.join(',') + ' → 推荐 ' + L.options[0].icon + L.options[0].label +
+console.log('  [短途+小区] 命中 ' + L.ruleIds.join(',') + ' → 推荐 ' + L.options[0].label +
   ' ¥' + L.options[0].cost + ' 门到门 ' + TRP.fmtDuration(L.options[0].minutes));
 console.log('    理由: ' + L.options[0].reason);
 console.log('    购票: ' + L.options[0].tickets);
@@ -68,7 +68,7 @@ console.log('  [无铁路] 推荐 ' + L.options[0].label + ' ¥' + L.options[0].
 console.log('\n=== 3. 偏好切换对每段推荐的影响(北京·天通苑 → 南京·夫子庙) ===');
 ['balanced', 'speed', 'direct', 'cheap', 'comfort'].forEach(p => {
   const l = leg('北京·天通苑', '南京·夫子庙', { preference: p });
-  console.log('  偏好=' + p.padEnd(9) + ' → ' + l.options[0].icon + l.options[0].label.padEnd(20) +
+  console.log('  偏好=' + p.padEnd(9) + ' → ' + l.options[0].label.padEnd(20) +
     ' ¥' + String(l.options[0].cost).padStart(4) + ' 门到门 ' + TRP.fmtDuration(l.options[0].minutes).padEnd(12) +
     ' 换乘 ' + l.options[0].transfers + ' | 备选 ' + l.options.length + ' 种');
 });
@@ -76,7 +76,7 @@ console.log('\n=== 3. 偏好切换对每段推荐的影响(北京·天通苑 →
 console.log('\n=== 4. 门到门明细 ===');
 L = leg('北京·天通苑', '南京·夫子庙');
 L.options.forEach(o => {
-  console.log('  ' + (o.recommended ? '★' : ' ') + o.icon + o.label.padEnd(20) + ' ¥' + String(o.cost).padStart(4) +
+  console.log('  ' + (o.recommended ? '*' : ' ') + o.label.padEnd(20) + ' ¥' + String(o.cost).padStart(4) +
     ' 门到门 ' + TRP.fmtDuration(o.minutes).padEnd(12) + '[接驳 ' + o.relayA.mode + '/' + o.relayB.mode +
     ' + 候车 ' + o.wait + '分 + 在途 ' + TRP.fmtDuration(o.intercityMinutes) + ']' + (o.transfers ? ' 需在' + o.hub + '换乘' : ' 直达'));
 });
@@ -94,7 +94,7 @@ res.routes.forEach(r => {
   console.log('      ' + names.join(' → '));
   r.segments.forEach(s => {
     const o = s.options.find(x => x.mode === s.chosen);
-    console.log('      ' + s.from.label.padEnd(18) + '→ ' + s.to.label.padEnd(18) + o.icon + o.label + ' ¥' + o.cost + ' ' + TRP.fmtDuration(o.minutes));
+    console.log('      ' + s.from.label.padEnd(18) + '→ ' + s.to.label.padEnd(18) + o.label + ' ¥' + o.cost + ' ' + TRP.fmtDuration(o.minutes));
   });
 });
 ok(res.routes.some(r => r.chain.some(c => c.place && c.place.n === '兵马俑')), '必去景点「西安·兵马俑」已进入路线');
@@ -105,13 +105,13 @@ const same = TRP.plan({ from: '北京·天通苑', to: '北京·望京', prefere
 same.routes.forEach(r => {
   console.log('  · ' + r.title + ' | ¥' + r.cost + ' | ' + TRP.fmtDuration(r.minutes));
   r.segments.forEach(s => {
-    s.options.forEach(o => console.log('      ' + (o.recommended ? '★' : ' ') + o.icon + o.label.padEnd(14) + ' ¥' + String(o.cost).padStart(3) + ' ' + TRP.fmtDuration(o.minutes) + ' · ' + o.reason));
+    s.options.forEach(o => console.log('      ' + (o.recommended ? '*' : ' ') + o.label.padEnd(14) + ' ¥' + String(o.cost).padStart(3) + ' ' + TRP.fmtDuration(o.minutes) + ' · ' + o.reason));
   });
 });
 ok(same.routes.length === 1 && same.routes[0].family === 'local', '同城两个地点 → 给出市内点对点方案');
 ok(same.routes[0].segments[0].options.length >= 3, '市内方案含地铁/打车/拼车等选择');
 const sameCity = TRP.plan({ from: '北京·天通苑', to: '北京', preference: 'comfort', userTags: ['行李多'] });
-console.log('  [带行李·舒适] ' + sameCity.routes[0].segments[0].options[0].icon + sameCity.routes[0].segments[0].options[0].label +
+console.log('  [带行李·舒适] ' + sameCity.routes[0].segments[0].options[0].label +
   ' ¥' + sameCity.routes[0].segments[0].options[0].cost);
 ok(sameCity.routes[0].segments[0].options[0].mode === 'taxi', '带行李+舒适偏好 → 推荐打车');
 const sameCity2 = TRP.plan({ from: '北京·天通苑', to: '北京·望京', preference: 'cheap' });
@@ -134,15 +134,15 @@ cases.forEach(c => {
       ' | 冠军 ' + (ch ? ch.title + ' ¥' + ch.cost : '无') +
       ' | 最省时 ' + (r.routes.length ? Math.min.apply(null, r.routes.map(x => x.minutes)) + '分' : '-'));
     r.routes.forEach(x => {
-      if (!isFinite(x.cost) || (!(x.cost >= 0))) { fails++; console.log('    ⚠️ 费用异常 ' + x.title); }
-      if (x.family !== 'local' && x.cost <= 0) { fails++; console.log('    ⚠️ 费用应大于 0 ' + x.title); }
+      if (!isFinite(x.cost) || (!(x.cost >= 0))) { fails++; console.log('    [WARN] 费用异常 ' + x.title); }
+      if (x.family !== 'local' && x.cost <= 0) { fails++; console.log('    [WARN] 费用应大于 0 ' + x.title); }
       x.segments.forEach(s => {
-        if (!s.options.length) { fails++; console.log('    ⚠️ 空段'); }
-        if (!s.options.some(o => o.mode === s.chosen)) { fails++; console.log('    ⚠️ chosen 不在选项中'); }
-        s.options.forEach(o => { if (!isFinite(o.cost) || !isFinite(o.minutes)) { fails++; console.log('    ⚠️ 选项数值异常 ' + o.label); } });
+        if (!s.options.length) { fails++; console.log('    [WARN] 空段'); }
+        if (!s.options.some(o => o.mode === s.chosen)) { fails++; console.log('    [WARN] chosen 不在选项中'); }
+        s.options.forEach(o => { if (!isFinite(o.cost) || !isFinite(o.minutes)) { fails++; console.log('    [WARN] 选项数值异常 ' + o.label); } });
       });
     });
-  } catch (e) { fails++; console.log('  ❌ ' + c[0] + '→' + c[1] + ' 报错: ' + e.message); }
+  } catch (e) { fails++; console.log('  [FAIL] ' + c[0] + '→' + c[1] + ' 报错: ' + e.message); }
 });
 console.log('  ' + cases.length + ' 组用例总耗时 ' + (Date.now() - t0) + 'ms');
 
@@ -159,5 +159,5 @@ const rk2 = TRP.rank(r2.routes);
 console.log('  重新排名后冠军 = ' + rk2.championId + ',领先次优 ¥' + rk2.championSave);
 ok(isFinite(rt.cost) && rt.cost > 0, '切换后费用仍然有效');
 
-console.log('\n' + (fails === 0 ? '✅ 全部检查通过' : '❌ 失败 ' + fails + ' 项'));
+console.log('\n' + (fails === 0 ? '全部检查通过' : '失败 ' + fails + ' 项'));
 process.exit(fails === 0 ? 0 : 1);

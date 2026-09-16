@@ -17,7 +17,7 @@ window.console.error = (...a) => { errors.push('console.error: ' + a.join(' '));
 let pass = 0, fail = 0;
 const ok = (cond, label) => {
   if (cond) pass++; else fail++;
-  console.log((cond ? '  ✅ ' : '  ❌ ') + label + (cond ? '' : '  <<< 失败'));
+  console.log((cond ? '  [PASS] ' : '  [FAIL] ') + label + (cond ? '' : '  <<< 失败'));
 };
 const $ = s => doc.querySelector(s);
 const $$ = s => Array.from(doc.querySelectorAll(s));
@@ -34,8 +34,9 @@ function clickChip(group, label) {
   if (c) c.click();
   return !!c;
 }
-function ruleTags() { return $$('#cards .rule-tag').map(e => e.textContent.trim()); }
-function hasRule(n) { return ruleTags().some(t => t.indexOf(n) === 0); }
+function ruleIds() { return $$('#cards .rule-tag').map(e => e.dataset.rule); }
+function ruleTags() { return $$('#cards .rule-tag').map(e => e.textContent.replace(/^\d+\s*/, '').trim()); }
+function hasRule(n) { return ruleIds().indexOf(n) >= 0; }
 function firstModeOf(c) { return c.querySelector('.seg .pick .mode-name').textContent.trim(); }
 
 setTimeout(() => {
@@ -59,7 +60,7 @@ setTimeout(() => {
     ok(/km/.test(seg0.querySelector('.seg-head .km').textContent), '分段标注了里程:' + seg0.querySelector('.seg-head .km').textContent.trim());
     ok(seg0.querySelector('.pick .reason').textContent.length > 12, '有推荐理由:' + seg0.querySelector('.pick .reason').textContent.trim().slice(0, 28) + '…');
     ok(seg0.querySelectorAll('.d2d .piece').length >= 3, '门到门明细含接驳/候车/在途等 ' + seg0.querySelectorAll('.d2d .piece').length + ' 项');
-    ok(/🎫/.test(seg0.querySelector('.tickets').textContent), '有购票建议:' + seg0.querySelector('.tickets').textContent.trim().slice(0, 30) + '…');
+    ok(!!seg0.querySelector('.tickets svg') && seg0.querySelector('.tickets').textContent.trim().length > 10, '有购票建议(矢量图标+文字):' + seg0.querySelector('.tickets').textContent.trim().slice(0, 30) + '…');
     ok(seg0.querySelectorAll('.alts .mode').length >= 2, '该段可切换交通方式 ' + seg0.querySelectorAll('.alts .mode').length + ' 种');
     ok(seg0.querySelectorAll('.alts .mode.cheap').length >= 1, '标出了该段最便宜的方式(浅金色)');
     ok(seg0.querySelectorAll('.alts .mode.sel').length === 1, '标出了当前选中的方式');
@@ -83,7 +84,7 @@ setTimeout(() => {
   planTo('北京·天通苑', '天津·五大道');
   let tags = ruleTags();
   const firstMode = txt('#cards .card .seg .pick .mode-name');
-  ok(hasRule('①'), '短途(<300km)命中规则1:' + tags.join(' / '));
+  ok(hasRule('R1'), '短途(<300km)命中规则1:' + tags.join(' / '));
   ok(/大巴|定制客运|城际|公交/.test(firstMode), '短途推荐的是大巴类而非火车:' + firstMode);
   ok(!/普速|高铁|动车/.test(firstMode), '没有把短途默认推成火车硬座');
   ok(/站外|上门接|直接开进市区|直插市区/.test(txt('#cards .card .seg .pick .reason')), '理由提到了大巴的优势:' + txt('#cards .card .seg .pick .reason').slice(0, 40) + '…');
@@ -94,28 +95,28 @@ setTimeout(() => {
   const directCard = $$('#cards .card').filter(c => c.querySelector('h3').textContent.indexOf('极速直达') >= 0)[0];
   const longMode = directCard ? firstModeOf(directCard) : '';
   ok(!!directCard, '存在「极速直达」的对照方案');
-  ok(hasRule('⑥'), '长距离(>400km、两端有高铁站)命中规则6:' + tags.slice(0, 8).join(' / ') + ' …');
+  ok(hasRule('R6'), '长距离(>400km、两端有高铁站)命中规则6:' + tags.slice(0, 8).join(' / ') + ' …');
   ok(/高铁|动车/.test(longMode), '长途直达推荐高铁/动车:' + longMode);
 
   planTo('北京', '天津');
   const sel = doc.getElementById('departHour');
   sel.value = '1';
   sel.dispatchEvent(new window.Event('change'));
-  ok(hasRule('③'), '凌晨出发命中规则3:' + ruleTags().join(' / '));
+  ok(hasRule('R3'), '凌晨出发命中规则3:' + ruleTags().join(' / '));
   sel.value = '';
   sel.dispatchEvent(new window.Event('change'));
 
   planTo('北京', '上海');
   ok(clickChip('tagChips', '带小孩'), '勾选「带小孩」');
-  ok(hasRule('④'), '带小孩命中规则4:' + ruleTags().join(' / '));
+  ok(hasRule('R4'), '带小孩命中规则4:' + ruleTags().join(' / '));
   clickChip('tagChips', '带小孩');
   planTo('北京', '上海');
   ok(clickChip('tagChips', '春运'), '勾选「春运」');
-  ok(hasRule('⑤'), '春运命中规则5:' + ruleTags().join(' / '));
+  ok(hasRule('R5'), '春运命中规则5:' + ruleTags().join(' / '));
   clickChip('tagChips', '春运');
 
   planTo('北京', '九寨沟');
-  ok(hasRule('②') || hasRule('①'), '景区端点命中规则2/1:' + ruleTags().join(' / '));
+  ok(hasRule('R2') || hasRule('R1'), '景区端点命中规则2/1:' + ruleTags().join(' / '));
   ok($('#toInfo').textContent.indexOf('火车站') >= 0, '景区目的地卡片说明了到火车站的距离');
 
   /* ---------------- 3. 交互 ---------------- */
@@ -198,11 +199,11 @@ setTimeout(() => {
     ok($$('#cards .card').length >= 1, '降级不影响路线卡片渲染');
 
     console.log('\n【运行期错误】' + (errors.length ? '' : ' 无'));
-    errors.slice(0, 6).forEach(e => console.log('  ⚠️ ' + e));
+    errors.slice(0, 6).forEach(e => console.log('  [WARN] ' + e));
     if (errors.length) fail += errors.length;
 
     console.log('\n结果:' + pass + ' 项通过,' + fail + ' 项失败');
-    console.log(fail ? '❌ 存在失败项' : '✅ 全部 DOM 检查通过');
+    console.log(fail ? '存在失败项' : '全部 DOM 检查通过');
     if (fail) process.exitCode = 1;
   }, 3600);
 }, 600);

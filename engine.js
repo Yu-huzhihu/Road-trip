@@ -155,17 +155,18 @@
   /* ---------------------------------------------------------
    * 3. 交通方式与里程费率(不含接驳与调度)
    * --------------------------------------------------------- */
+  /* 图标不在这里定义:界面按 mode 键自行映射矢量图标,数据层只保留语义键 */
   const MODES = {
-    citybus: { key: 'citybus', label: '城际公交/地铁', icon: '🚇', group: '公共交通', rate: 0.20, min: 3, speed: 45, factor: 1.15, wait: 10, maxKm: 200 },
-    bus: { key: 'bus', label: '城际大巴', icon: '🚌', group: '大巴', rate: 0.42, min: 15, speed: 72, factor: 1.22, wait: 20, maxKm: 950 },
-    charter: { key: 'charter', label: '定制客运/城际拼车', icon: '🚐', group: '大巴', rate: 0.75, min: 60, speed: 80, factor: 1.15, wait: 15, maxKm: 350 },
-    d: { key: 'd', label: '动车 D 二等座', icon: '🚈', group: '高铁/火车', rate: 0.31, min: 18, speed: 200, factor: 1.28, wait: 35, maxKm: 2400 },
-    g: { key: 'g', label: '高铁 G 二等座', icon: '🚄', group: '高铁/火车', rate: 0.44, min: 25, speed: 255, factor: 1.28, wait: 40, maxKm: 2800 },
-    k: { key: 'k', label: '普速列车 硬座', icon: '🚂', group: '高铁/火车', rate: 0.12, min: 8, speed: 75, factor: 1.30, wait: 45, maxKm: 4200 },
-    kw: { key: 'kw', label: '普速列车 硬卧(夜车)', icon: '🛏️', group: '高铁/火车', rate: 0.22, min: 90, speed: 80, factor: 1.30, wait: 40, maxKm: 4200 },
-    air: { key: 'air', label: '飞机 经济舱', icon: '✈️', group: '民航', rate: 0.62, min: 350, speed: 720, factor: 1.06, wait: 110, extra: 90, maxKm: 5000 }
+    citybus: { key: 'citybus', label: '城际公交/地铁', group: '公共交通', rate: 0.20, min: 3, speed: 45, factor: 1.15, wait: 10, maxKm: 200 },
+    bus: { key: 'bus', label: '城际大巴', group: '大巴', rate: 0.42, min: 15, speed: 72, factor: 1.22, wait: 20, maxKm: 950 },
+    charter: { key: 'charter', label: '定制客运/城际拼车', group: '大巴', rate: 0.75, min: 60, speed: 80, factor: 1.15, wait: 15, maxKm: 350 },
+    d: { key: 'd', label: '动车 D 二等座', group: '高铁/火车', rate: 0.31, min: 18, speed: 200, factor: 1.28, wait: 35, maxKm: 2400 },
+    g: { key: 'g', label: '高铁 G 二等座', group: '高铁/火车', rate: 0.44, min: 25, speed: 255, factor: 1.28, wait: 40, maxKm: 2800 },
+    k: { key: 'k', label: '普速列车 硬座', group: '高铁/火车', rate: 0.12, min: 8, speed: 75, factor: 1.30, wait: 45, maxKm: 4200 },
+    kw: { key: 'kw', label: '普速列车 硬卧(夜车)', group: '高铁/火车', rate: 0.22, min: 90, speed: 80, factor: 1.30, wait: 40, maxKm: 4200 },
+    air: { key: 'air', label: '飞机 经济舱', group: '民航', rate: 0.62, min: 350, speed: 720, factor: 1.06, wait: 110, extra: 90, maxKm: 5000 }
   };
-  const MODE_ORDER = ['metro', 'taxi', 'ride', 'citybus', 'bus', 'charter', 'd', 'g', 'k', 'kw', 'air'];
+  const MODE_ORDER = ['walk', 'metro', 'taxi', 'ride', 'citybus', 'bus', 'charter', 'd', 'g', 'k', 'kw', 'air'];
   const RAIL_MODES = ['d', 'g', 'k', 'kw'];
   const HSR_MODES = ['g', 'd'];
   const BUS_MODES = ['bus', 'charter'];
@@ -177,12 +178,12 @@
     const straight = localStraight(a, b);
     const road = straight * 1.3;
     const out = [];
-    const mk = function (mode, label, icon, group, rate, min, speed, wait, walkKm) {
+    const mk = function (mode, label, group, rate, min, speed, wait, walkKm) {
       const dist = Math.max(road, walkKm || 0);
       const cost = Math.max(min, dist * rate);
       const minutes = Math.round(dist / speed * 60) + wait;
       out.push({
-        mode: mode, label: label, icon: icon, group: group,
+        mode: mode, label: label, group: group,
         intercityCost: Math.round(cost), intercityMinutes: minutes,
         wait: 0, dist: Math.round(dist), straight: Math.round(straight),
         relayA: { mode: '无需接驳', km: 0, minutes: 0, cost: 0, alt: null },
@@ -192,11 +193,11 @@
       });
     };
     if (straight <= 3) {
-      mk('metro', '步行/骑行', '🚶', '市内短途', 0, 0, 5, 0, straight * 1.25);
+      mk('walk', '步行/骑行', '市内短途', 0, 0, 5, 0, straight * 1.25);
     }
-    mk('metro', '地铁/公交', '🚇', '市内公共交通', 0.25, 2, 22, 8);
-    mk('taxi', '打车/网约车', '🚕', '市内打车', 2.6, 14, 28, 5);
-    if (straight >= 8) mk('ride', '顺风车/拼车', '🚗', '市内拼车', 1.2, 12, 26, 12);
+    mk('metro', '地铁/公交', '市内公共交通', 0.25, 2, 22, 8);
+    mk('taxi', '打车/网约车', '市内打车', 2.6, 14, 28, 5);
+    if (straight >= 8) mk('ride', '顺风车/拼车', '市内拼车', 1.2, 12, 26, 12);
     out.sort(function (x, y) { return MODE_ORDER.indexOf(x.mode) - MODE_ORDER.indexOf(y.mode); });
     return out;
   }
@@ -206,21 +207,24 @@
     const heavy = ctx.rp === 'taxi';
     options.forEach(function (o) {
       let s = 60;
+      if (o.mode === 'walk') s += heavy ? -16 : 8;
       if (o.mode === 'metro') s += heavy ? -10 : 14;
       if (o.mode === 'taxi') s += heavy ? 16 : 4;
       if (o.mode === 'ride') s += heavy ? 2 : 0;
       if (ctx.preference === 'speed') s += (30 - o.minutes) / 10;
       if (ctx.preference === 'cheap') s -= o.cost / 5;
-      if (ctx.preference === 'comfort') s += o.mode === 'taxi' ? 12 : (o.mode === 'metro' ? -6 : 2);
+      if (ctx.preference === 'comfort') s += o.mode === 'taxi' ? 12 : (o.mode === 'metro' ? -6 : (o.mode === 'walk' ? -8 : 2));
       if (ctx.preference === 'direct') s += o.mode === 'taxi' ? 8 : 0;
       o.score = s;
       o.ruleTags = [];
-      o.reason = o.mode === 'taxi' ? '点对点直接送到门口,赶时间或者带行李时最省事。'
-        : o.mode === 'ride' ? '拼车价格介于地铁和打车之间,提前几分钟叫车就有。'
-          : '地铁/公交班次密、不怕堵车,最省钱的一段。';
-      o.tickets = o.mode === 'taxi' ? '用高德/滴滴叫车,起步价 + 里程计费。'
-        : o.mode === 'ride' ? '在滴滴/哈啰的顺风车入口提前 30 分钟发布行程。'
-          : '手机刷码进站,或用「车来了」看实时到站。';
+      o.reason = o.mode === 'walk' ? '两三公里以内,直接走过去或骑个车最省事,不用等车也不用找车位。'
+        : o.mode === 'taxi' ? '点对点直接送到门口,赶时间或者带行李时最省事。'
+          : o.mode === 'ride' ? '拼车价格介于地铁和打车之间,提前几分钟叫车就有。'
+            : '地铁/公交班次密、不怕堵车,最省钱的一段。';
+      o.tickets = o.mode === 'walk' ? '用地图 App 步行导航,共享单车扫码就走。'
+        : o.mode === 'taxi' ? '用高德/滴滴叫车,起步价 + 里程计费。'
+          : o.mode === 'ride' ? '在滴滴/哈啰的顺风车入口提前 30 分钟发布行程。'
+            : '手机刷码进站,或用「车来了」看实时到站。';
     });
     options.sort(function (x, y) { return y.score - x.score || x.minutes - y.minutes; });
     options.forEach(function (o, i) { o.recommended = i === 0; });
@@ -353,7 +357,7 @@
       if (ti.transfers) { relayMin += 25; relayCost += 20; }
 
       out.push({
-        mode: key, label: m.label, icon: m.icon, group: m.group,
+        mode: key, label: m.label, group: m.group,
         intercityCost: Math.round(intercityCost), intercityMinutes: intercityMin,
         wait: m.wait, dist: Math.round(dist), straight: Math.round(straight),
         relayA: relayA, relayB: relayB,
@@ -393,13 +397,14 @@
   /* ---------------------------------------------------------
    * 7. 交通方式决策规则(严格按 6 条顺序判断)
    * --------------------------------------------------------- */
+  /* 文案不带序号:界面按 id 渲染「规则 N」标签,避免符号与表意混在一起 */
   const RULE_TEXT = {
-    R1: '① 短途(<300km)→ 优先城际大巴/定制客运',
-    R2: '② 端点在县城/景区或离火车站太远 → 大巴/专线直达',
-    R3: '③ 该时段火车没班次 → 夜班大巴/定制客运',
-    R4: '④ 带小孩/行李多/老人 → 大巴更省事',
-    R5: '⑤ 节假日/春运 → 大巴兜底',
-    R6: '⑥ 长途(>400km)且两端通高铁 → 高铁最稳妥'
+    R1: '短途 300 km 内 → 优先城际大巴 / 定制客运',
+    R2: '端点在县城·景区或离火车站太远 → 大巴 / 专线直达',
+    R3: '该时段火车没有班次 → 夜班大巴 / 定制客运',
+    R4: '带小孩·行李多·有老人 → 大巴更省事',
+    R5: '节假日·春运 → 大巴兜底',
+    R6: '长途 400 km 以上且两端通高铁 → 高铁最稳妥'
   };
 
   function placeKindLabel(loc) {
@@ -769,7 +774,8 @@
   /* ---------------------------------------------------------
    * 10. 主规划函数
    * --------------------------------------------------------- */
-  const COLORS = ['#2f6fed', '#0ea5a4', '#b45309', '#7c3aed', '#dc2626', '#0f766e'];
+  /* 路线配色与界面主色系同源:松墨绿 / 铁蓝 / 琥珀 / 紫罗兰 / 陶砖 / 青苔 */
+  const COLORS = ['#15523F', '#2C4257', '#9A5B10', '#6B4E8C', '#9C3A1E', '#3F6E5A'];
 
   function plan(opts) {
     const a = opts.fromLoc || parsePlace(opts.from);
@@ -876,7 +882,7 @@
     const scoreSum = function (arr) { return arr.reduce(function (s, x) { return s + x.c.s; }, 0); };
     const routes = [];
 
-    // ① 直达 / 只走必去点
+    // 1) 直达 / 只走必去点
     routes.push(buildRoute(a, b, anchors, ctx, {
       id: 'direct',
       title: anchors.length ? '只走必去点 · ' + anchors.length + ' 站' : '极速直达',
@@ -884,7 +890,7 @@
       color: COLORS[0], family: 'direct'
     }));
 
-    // ② 顺路精选
+    // 2) 顺路精选
     const cClassic = pickBest(Math.max(kClassic, anchors.length + 1), {
       maxRatio: Math.min(prefs.maxRatio, 1.32), maxExtra: maxExtraBase,
       score: function (arr, ratio) { return scoreSum(arr) - 190 * (ratio - 1); }
@@ -894,7 +900,7 @@
       desc: '偏离直线不到三成,顺路加停口碑最好的城市', color: COLORS[1], family: 'classic'
     }));
 
-    // ③ 全程高铁/动车
+    // 3) 全程高铁/动车
     const cHsr = pickBest(Math.max(kClassic + 1, anchors.length + 1), {
       maxRatio: Math.min(prefs.maxRatio + 0.08, 1.45), maxExtra: maxExtraBase * 1.1,
       score: function (arr, ratio, cost, time, info) { return scoreSum(arr) * 0.5 - time / 60 * 6 - ratio * 25 - info.transfers * 40; }
@@ -904,7 +910,7 @@
       desc: '城市之间尽量用高铁/动车衔接,班次密、准点率高', color: COLORS[3], family: 'hsr', railOnly: true
     }));
 
-    // ④ 深度环游
+    // 4) 深度环游
     const cDeep = pickBest(Math.max(kDeep, anchors.length + 1), {
       maxRatio: Math.min(prefs.maxRatio + 0.3, 1.8), maxExtra: Math.max(D * 0.95, 800),
       score: function (arr, ratio, cost) { return scoreSum(arr) * 0.75 - cost / 100 * 3 - ratio * 12; }
@@ -914,7 +920,7 @@
       desc: '多停几站慢慢玩,交通按省心省钱的思路安排', color: COLORS[4], family: 'deep'
     }));
 
-    // ⑤ 最经济:门到门总价最低的多城组合
+    // 5) 最经济:门到门总价最低的多城组合
     const cEco = pickBest(Math.max(2, anchors.length + 1), {
       maxRatio: Math.min(prefs.maxRatio, 1.35), maxExtra: Math.max(D * 0.35, 300),
       score: function (arr, ratio, cost) { return -cost - ratio * 3 + arr.length * 2; }
@@ -958,14 +964,15 @@
     const cheap = list.slice().sort(function (x, y) { return x.cost - y.cost || y.chain.length - x.chain.length; });
     const multi = cheap.filter(function (r) { return r.chain.length >= 1; });
     const champion = multi.length ? multi[0] : cheap[0];
-    titles[champion.id] = '🏆';
+    const mark = function (id, txt) { titles[id] = titles[id] ? titles[id] + ' · ' + txt : txt; };
+    titles[champion.id] = '最省';
 
     const fast = list.slice().sort(function (x, y) { return x.minutes - y.minutes; })[0];
-    titles[fast.id] = (titles[fast.id] || '') + '⚡';
+    mark(fast.id, '最快');
     const smooth = list.slice().sort(function (x, y) { return (x.transfers - y.transfers) || (x.minutes - y.minutes); })[0];
-    titles[smooth.id] = (titles[smooth.id] || '') + '🔁';
+    mark(smooth.id, '少换乘');
     const many = list.slice().sort(function (x, y) { return (y.chain.length - x.chain.length) || (y.score - x.score); })[0];
-    titles[many.id] = (titles[many.id] || '') + '🎒';
+    mark(many.id, '多停靠');
 
     const rival = cheap.filter(function (r) { return r.id !== champion.id && r.chain.length >= 1; })[0] ||
       cheap.filter(function (r) { return r.id !== champion.id; })[0];

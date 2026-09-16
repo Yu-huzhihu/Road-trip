@@ -40,12 +40,12 @@ catch (e) { problems.push('内联脚本语法错误: ' + e.message); }
 // 4) 占位符必须已被替换干净
 if (out.indexOf(PLACEHOLDER) >= 0) problems.push('占位符未被替换');
 
-console.log('✅ 已生成 index.html,大小 ' + (out.length / 1024).toFixed(1) + ' KB');
+console.log('已生成 index.html,大小 ' + (out.length / 1024).toFixed(1) + ' KB');
 console.log('   内联: data.js ' + (data.length / 1024).toFixed(1) + ' KB + engine.js ' + (engine.length / 1024).toFixed(1) + ' KB');
-console.log('   合规检查:' + (leak ? '⚠️ 发现疑似密钥' : '通过,未内联地图密钥') +
+console.log('   合规检查:' + (leak ? '发现疑似密钥' : '通过,未内联地图密钥') +
   ' | 代理占位符保留:' + (portKept && secretKept ? '是' : '否'));
 if (problems.length) {
-  console.log('⚠️ 构建问题:'); problems.forEach(function (p) { console.log('   - ' + p); });
+  console.log('构建问题:'); problems.forEach(function (p) { console.log('   - ' + p); });
   process.exit(1);
 }
-console.log('✅ 构建自检全部通过');
+console.log('构建自检全部通过');
